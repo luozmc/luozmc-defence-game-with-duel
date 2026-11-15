@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>DEFENCE</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -264,7 +267,7 @@
   #slideWrap .sb i{display:block;height:100%;width:100%;background:linear-gradient(90deg,#3aa0ff,#8fd0ff)}
   #slideWrap.cd .sb i{background:#55607a}
   #slideWrap kbd{background:#2a3347;border-radius:4px;padding:1px 6px;color:#fff;font-family:inherit}
-  #hurt{position:fixed;inset:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse at center,rgba(200,0,0,0) 40%,rgba(200,0,0,.75) 100%);transition:opacity .35s}
+  #hurt{position:fixed;inset:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse at center,rgba(200,0,0,0) 40%,rgba(200,0,0,.75) 100%)}
   #hitDir{position:fixed;left:50%;top:50%;width:0;height:0;pointer-events:none}
   #hitDir i{position:absolute;left:-60px;top:-150px;width:120px;height:70px;opacity:0;
     background:radial-gradient(ellipse at 50% 100%,rgba(255,40,40,.95),rgba(255,40,40,0) 70%);transition:opacity .6s}
@@ -286,6 +289,12 @@
   #mapPrev .mid{text-align:center;color:#fff;text-shadow:0 2px 12px #000}
   #mapPrev h2{font-size:clamp(26px,4vw,46px);letter-spacing:.16em;margin:0}
   #mapPrev p{font-size:14px;margin:4px 0 0;color:#ffd24a}
+  #wepSelect{position:fixed;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;background:rgba(5,8,14,.55);animation:fadein .2s}
+  #wepSelect .wsPanel{width:min(94vw,560px);max-height:88vh;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px 22px 18px;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+  #wepSelect h2{letter-spacing:.1em;font-size:22px;text-align:center}
+  #wepSelect .wsSub{text-align:center;color:var(--muted);font-size:13px;margin:4px 0 14px}
+  #wepSelect .wsTimer{width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:20px;font-weight:800;color:#fff;background:var(--accent);box-shadow:0 0 0 4px rgba(255,106,43,.22)}
+  #wepSelect .wsTimer.low{background:#e23b3b;box-shadow:0 0 0 4px rgba(226,59,59,.25)}
   #reveal{position:fixed;inset:0;z-index:90;background:rgba(5,8,14,.88);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;animation:fadein .3s}
   @keyframes fadein{from{opacity:0}to{opacity:1}}
   #reveal h1{font-size:clamp(34px,6vw,60px);letter-spacing:.14em;color:#ffd24a;text-shadow:0 0 24px rgba(255,190,40,.8);animation:dshake .6s ease-out}
@@ -3419,8 +3428,8 @@ let duelRound = 0, duelScoreMe = 0, duelScoreOpp = 0, duelMap = 'desert', duelMa
 let duelMyVote = null, duelOppVote = null, duelMapResolved = false;
 const DUEL_MAX_ROUNDS = 5, DUEL_WIN_AT = 3, DUEL_HP = 500;
 function spawnRemote(x, z, yaw, y){
-  remote = { g:makeBotMesh(false), x, y:y || 0, z, yaw, walkT:0, mv:false, hp:100, dead:false,
-             netX:x, netY:y || 0, netZ:z, netYaw:yaw, netMoving:false, netHp:100, netDead:false };
+  remote = { g:makeBotMesh(false), x, y:y || 0, z, yaw, walkT:0, mv:false, hp:100, dead:false, sliding:false, slidePose:-1,
+             netX:x, netY:y || 0, netZ:z, netYaw:yaw, netMoving:false, netHp:100, netDead:false, netSliding:false };
   remote.g.position.set(x, remote.y, z); remote.g.rotation.set(0, yaw, 0); remote.g.visible = true;
   if (!remote.g.parent) scene.add(remote.g);
 }
@@ -3429,16 +3438,27 @@ function despawnRemote(){
 }
 function updateRemoteVisual(dt){
   if (!remote) return;
-  remote.x = remote.netX; remote.y = remote.netY; remote.z = remote.netZ; remote.yaw = remote.netYaw;
-  remote.mv = remote.netMoving; remote.hp = remote.netHp; remote.dead = remote.netDead;
-  const sw = (remote.mv && !remote.dead) ? Math.sin(remote.walkT += dt * 12) * .7 : 0, bs = remote.g.userData.sol;
-  if (sw !== remote.g.userData.sw){
-    remote.g.userData.sw = sw;
-    solLeg(bs, 'R', sw, Math.max(0, -sw) * .8); solLeg(bs, 'L', -sw, Math.max(0, sw) * .8);
-    for (const k of bs.legsI) bs.bones[k].quaternion.copy(bs.lq[k]);
+  // smoothly chase the latest network sample instead of snapping straight to it, so
+  // position AND facing read as one continuous motion (this is what made the avatar
+  // look like it wasn't really "facing" you - it was popping between stale snapshots).
+  const k = Math.min(1, dt * 18);
+  remote.x += (remote.netX - remote.x) * k; remote.y += (remote.netY - remote.y) * k; remote.z += (remote.netZ - remote.z) * k;
+  let dy = remote.netYaw - remote.yaw; while (dy > Math.PI) dy -= Math.PI*2; while (dy < -Math.PI) dy += Math.PI*2;
+  remote.yaw += dy * k;
+  remote.mv = remote.netMoving; remote.hp = remote.netHp; remote.dead = remote.netDead; remote.sliding = remote.netSliding;
+  const bs = remote.g.userData.sol;
+  if (remote.sliding && !remote.dead){
+    if (remote.slidePose !== 1){ remote.slidePose = 1; solLeg(bs, 'R', 1.05, -.25); solLeg(bs, 'L', -.35, -.95); for (const kk of bs.legsI) bs.bones[kk].quaternion.copy(bs.lq[kk]); }
+  } else {
+    const sw = (remote.mv && !remote.dead) ? Math.sin(remote.walkT += dt * 12) * .7 : 0;
+    if (sw !== remote.g.userData.sw || remote.slidePose === 1){
+      remote.slidePose = -1; remote.g.userData.sw = sw;
+      solLeg(bs, 'R', sw, Math.max(0, -sw) * .8); solLeg(bs, 'L', -sw, Math.max(0, sw) * .8);
+      for (const kk of bs.legsI) bs.bones[kk].quaternion.copy(bs.lq[kk]);
+    }
   }
   remote.g.visible = !remote.dead;
-  remote.g.position.set(remote.x, remote.y, remote.z); remote.g.rotation.y = remote.yaw;
+  remote.g.position.set(remote.x, remote.y - (remote.sliding ? .35 : 0), remote.z); remote.g.rotation.set(remote.sliding ? -.18 : 0, remote.yaw, 0);
 }
 function findSpawn(){
   if (MAP.nav){                                                             // castle: any room, on any floor
@@ -3977,7 +3997,8 @@ function dropUpdate(dt, t){
   }
   // ----- free-fall / parachute -----
   const fwdx = -Math.sin(P.yaw), fwdz = -Math.cos(P.yaw), rgx = -fwdz, rgz = fwdx;
-  let ix = 0, iz = 0; if (keys['w'] || keys['arrowup']) iz += 1; if (keys['s'] || keys['arrowdown']) iz -= 1; if (keys['d']) ix += 1; if (keys['a']) ix -= 1;
+  let ix = 0, iz = 0;
+  if (!D.duelAuto){ if (keys['w'] || keys['arrowup']) iz += 1; if (keys['s'] || keys['arrowdown']) iz -= 1; if (keys['d']) ix += 1; if (keys['a']) ix -= 1; }
   let mx = fwdx * iz + rgx * ix, mz = fwdz * iz + rgz * ix; const ml = Math.hypot(mx, mz); if (ml > 0){ mx /= ml; mz /= ml; }
   const prevY = P.y;
   if (D.phase === 'fall'){
@@ -4004,8 +4025,13 @@ function dropUpdate(dt, t){
   const wantFov = SET.fov + (D.phase === 'fall' ? (P.vy < -55 ? 16 : 8) : 0); D.fov += (wantFov - D.fov) * Math.min(1, dt * 4); camera.fov = D.fov; camera.updateProjectionMatrix();
   if (D.chute){ D.chute.position.set(P.x, P.y + 1.0, P.z); D.chute.rotation.y = P.yaw; }
   const alt = Math.max(0, Math.round(P.y - g));
-  dropHud(D.phase === 'fall' ? '<b>FREE-FALL</b><small>Press <u>SPACE</u> to open your parachute &bull; hold W to dive &bull; ' + alt + ' m' + (alt < CHUTE_AUTO_H + 40 ? ' &bull; opens automatically near the ground' : '') + '</small>'
-                              : '<b>PARACHUTE OPEN</b><small>Steer with W A S D &bull; ' + alt + ' m to go' + (D.auto ? ' &bull; opened automatically' : '') + '</small>');
+  if (D.duelAuto){
+    dropHud(D.phase === 'fall' ? '<b>DROPPING IN</b><small>' + alt + ' m to your round spawn</small>'
+                                : '<b>LANDING</b><small>' + alt + ' m to go</small>');
+  } else {
+    dropHud(D.phase === 'fall' ? '<b>FREE-FALL</b><small>Press <u>SPACE</u> to open your parachute &bull; hold W to dive &bull; ' + alt + ' m' + (alt < CHUTE_AUTO_H + 40 ? ' &bull; opens automatically near the ground' : '') + '</small>'
+                                : '<b>PARACHUTE OPEN</b><small>Steer with W A S D &bull; ' + alt + ' m to go' + (D.auto ? ' &bull; opened automatically' : '') + '</small>');
+  }
 }
 
 function battleUpdate(dt, t){
@@ -4113,7 +4139,10 @@ function battleUpdate(dt, t){
 
   // HUD
   P.hurtT = Math.max(0, P.hurtT - dt); P.hitT = Math.max(0, P.hitT - dt); P.hmT = Math.max(0, P.hmT - dt);
-  $('hurt').style.opacity = P.dead ? 0 : Math.min(.95, P.hurtT / .6 * .9);
+  // flash red a couple of times on a hit instead of one plain fade - a fast flicker
+  // that decays with the remaining hurt timer, so a hit reads as a hit
+  const flashPulse = .55 + .45 * Math.abs(Math.sin(P.hurtT * 46));
+  $('hurt').style.opacity = P.dead ? 0 : Math.min(.95, (P.hurtT / .6) * .95 * flashPulse);
   $('hitDir').firstElementChild.style.opacity = P.hitT / .8;
   $('hitmark').style.opacity = P.hmT > 0 ? 1 : 0;
   hudT -= dt;
@@ -4147,13 +4176,13 @@ document.addEventListener('mousemove', e => {
 let lockAlt = false;
 function tryLock(){ try{ const el = lockAlt ? document.documentElement : $('stage'), r = el.requestPointerLock(); if (r && r.catch) r.catch(() => {}); }catch(e){} }
 let lockErr = false;
-document.addEventListener('mousedown', e => { if (mode === 'battle' && previewT > 0){ endPreview(); return; }
+document.addEventListener('mousedown', e => { if (mode === 'battle' && previewT > 0 && !duelMode){ endPreview(); return; }
   if (mode === 'battle' && drop){ if (e.button === 0) dropAct(); return; }
   if (mode === 'battle' && !locked() && !P.dead && $('pause').classList.contains('hidden')) tryLock();
   if (mode === 'battle' && e.button === 0 && canPlay()) firing = true; if (mode === 'battle' && e.button === 2) aiming = true; });
 document.addEventListener('contextmenu', e => { if (mode === 'battle') e.preventDefault(); });
 window.addEventListener('keydown', e => { if (mode === 'battle' && drop && !e.repeat && (e.key === ' ' || e.key.toLowerCase() === 'f')){ dropAct(); e.preventDefault(); } });
-window.addEventListener('keydown', e => { if (mode === 'battle' && previewT > 0 && (e.key === ' ' || e.key === 'Enter' || e.key === 'Escape')){ endPreview(); e.preventDefault(); } });
+window.addEventListener('keydown', e => { if (mode === 'battle' && previewT > 0 && !duelMode && (e.key === ' ' || e.key === 'Enter' || e.key === 'Escape')){ endPreview(); e.preventDefault(); } });
 window.addEventListener('keydown', e => { if (mode === 'battle' && e.key.toLowerCase() === 'r' && canPlay()) startReload(); });
 // any key press may also (re)grab the mouse, so you are not stuck without mouse lock
 let lockTry = 0;
@@ -4193,11 +4222,50 @@ function endPreview(){
   firing = false;
   if (!was || mode !== 'battle') return;
   if (duelMode){
-    // duels skip the plane/parachute entirely: rounds need to restart fast, and
-    // spawn points are assigned (random, 50m+ apart), not chosen by parachuting in.
-    P.onGround = true; P.vy = 0; $('cross').style.opacity = 1;
-    if (vm) vm.visible = true; if (vmArmG) vmArmG.visible = true;
+    // duels skip the plane + jump (the map-preview flythrough already covers that
+    // beat) but still get an autopiloted free-fall + parachute landing, dropping
+    // the player in straight down onto their already-assigned round spawn point -
+    // no steering, so the 50m-apart guarantee between the two players still holds.
+    if (!drop) startAutoLandDuel();
   } else if (!drop) startDrop();
+}
+function startAutoLandDuel(){
+  drop = { phase:'fall', t:1, dx:0, dz:0, vx:0, vz:0, chute:null, plane:null, fov:SET.fov, auto:true, duelAuto:true,
+           fogN:scene.fog ? scene.fog.near : 0, fogF:scene.fog ? scene.fog.far : 0 };
+  if (scene.fog){ scene.fog.near = Math.max(scene.fog.near, 220); scene.fog.far = Math.max(scene.fog.far, 700); }
+  P.vy = -2; P.onGround = false; P.ex = P.ez = 0;
+  firing = false; aiming = false;
+  if (vm) vm.visible = false; if (vmArmG) vmArmG.visible = false;
+  $('cross').style.opacity = 0;
+}
+/* ---------- 10s weapon pick at the start of a match ---------- */
+function showWeaponSelect(onDone){
+  const old = document.getElementById('wepSelect'); if (old) old.remove();
+  let left = 10, resolved = false;
+  const el = document.createElement('div'); el.id = 'wepSelect';
+  el.innerHTML = '<div class="wsPanel"><h2>CHOOSE YOUR WEAPON</h2><p class="wsSub">You have 10 seconds - no pick keeps your current loadout</p>' +
+    '<div class="wsTimer" id="wsTimer">10</div>' +
+    '<div class="guns" id="wsGuns">' + WEAPONS.map(g =>
+      '<div class="gun' + (g.id === loadout.weapon ? ' on' : '') + '" data-id="' + g.id + '"><div class="name">' + g.n + '</div><div class="tag">' + g.tag + '</div></div>'
+    ).join('') + '</div></div>';
+  document.body.appendChild(el);
+  function finish(id){
+    if (resolved) return; resolved = true;
+    clearInterval(iv); el.remove();
+    if (id && id !== loadout.weapon){ loadout.weapon = id; saveAcct(); }
+    onDone();
+  }
+  el.querySelector('#wsGuns').onclick = e => {
+    const g = e.target.closest('.gun'); if (!g) return;
+    el.querySelectorAll('#wsGuns .gun').forEach(x => x.classList.toggle('on', x === g));
+    finish(g.dataset.id);
+  };
+  const iv = setInterval(() => {
+    left -= 1;
+    const te = document.getElementById('wsTimer');
+    if (te){ te.textContent = Math.max(0, left); te.classList.toggle('low', left <= 3); }
+    if (left <= 0) finish(loadout.weapon);
+  }, 1000);
 }
 function startBattle(mapName, opts){
   closeModal();
@@ -4227,14 +4295,18 @@ function startBattle(mapName, opts){
   previewT = PREVIEW_LEN;
   { const old = document.getElementById('mapPrev'); if (old) old.remove();
     const mp = document.createElement('div'); mp.id = 'mapPrev';
-    mp.innerHTML = '<div class="bar"></div><div class="mid"><h2>' + ({ desert:'DUST YARD', snow:'FROST PEAK', forest:'PINE HOLLOW', waterfall:'PRAIRIE FALLS', castle:'DEFENCE CASTLE' }[curMap] || curMap) + '</h2><p>Map preview &nbsp;&bull;&nbsp; press Space or click to skip</p></div><div class="bar"></div>';
+    mp.innerHTML = '<div class="bar"></div><div class="mid"><h2>' + ({ desert:'DUST YARD', snow:'FROST PEAK', forest:'PINE HOLLOW', waterfall:'PRAIRIE FALLS', castle:'DEFENCE CASTLE' }[curMap] || curMap) + '</h2><p>Map preview' + (duelMode ? '' : ' &nbsp;&bull;&nbsp; press Space or click to skip') + '</p></div><div class="bar"></div>';
     document.body.appendChild(mp); }
   firing = false; recoil = 0; swing = 0; flashT = 0; fireCd = 0;
-  $('stage').style.cursor = 'none';
-  try{ $('stage').requestPointerLock(); }catch(e){}
   $('pause').classList.add('hidden');
   noLock = false;
-  setTimeout(() => { if (mode === 'battle' && !P.dead && !locked()){ noLock = true; $('pause').classList.add('hidden'); } }, 700);
+  // pick a weapon before the pointer locks in - clicking a gun card needs a real,
+  // visible cursor, so the lock request waits until the 10s window is done
+  showWeaponSelect(() => {
+    $('stage').style.cursor = 'none';
+    try{ $('stage').requestPointerLock(); }catch(e){}
+    setTimeout(() => { if (mode === 'battle' && !P.dead && !locked()){ noLock = true; $('pause').classList.add('hidden'); } }, 700);
+  });
 }
 function endBattle(){
   lockHint(false);
@@ -4245,6 +4317,7 @@ function endBattle(){
   if (vm){ camera.remove(vm); vm = null; }
   if (vmArmG){ camera.remove(vmArmG); vmArmG = null; }
   { const mp = document.getElementById('mapPrev'); if (mp) mp.remove(); } previewT = 0;
+  { const ws = document.getElementById('wepSelect'); if (ws) ws.remove(); }
   if (drop) finishDrop(); dropHud(null, false);
   particles.forEach(p => { scene.remove(p.m); }); particles = [];
   tracers.forEach(t => { t.m.visible = false; t.life = 0; });
@@ -4471,7 +4544,7 @@ function netHandle(data){
   else if (data.type === 'state'){
     if (!remote) return;
     remote.netX = data.x; remote.netY = data.y; remote.netZ = data.z; remote.netYaw = data.yaw;
-    remote.netMoving = data.moving; remote.netHp = data.hp; remote.netDead = data.dead;
+    remote.netMoving = data.moving; remote.netHp = data.hp; remote.netDead = data.dead; remote.netSliding = !!data.sliding;
   }
   else if (data.type === 'shot'){ if (duelMode && !P.dead) damagePlayer(data.dmg, remote ? remote.x : P.x, remote ? remote.z : P.z); }
   else if (data.type === 'peerLeft'){ duelPeerLeft('Your opponent left the duel.'); }
@@ -4503,7 +4576,7 @@ function netTick(dt){
   netTickT -= dt;
   if (netTickT <= 0){
     netTickT = .05;
-    netSend({ type:'state', x:P.x, y:P.y, z:P.z, yaw:P.yaw, moving: !P.dead && lastMoveLen > 0, hp:P.hp, dead:P.dead });
+    netSend({ type:'state', x:P.x, y:P.y, z:P.z, yaw:P.yaw, moving: !P.dead && lastMoveLen > 0, hp:P.hp, dead:P.dead, sliding:P.slide > 0 });
   }
   if (remote && remote.netDead && !remoteWasDead && !P.dead && !won){
     remoteWasDead = true;
