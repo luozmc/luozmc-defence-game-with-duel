@@ -756,11 +756,25 @@ const Snd = (function(){
   function ok(){ return ctx && !muted && ctx.state === 'running'; }
   function shot(id){
     if (!ok()) return; const t = ctx.currentTime;
-    if (id === 'ak47'){ thump(sfx,t,170,50,.2,.7); noiseHit(sfx,t,.22,.55,'lowpass',4200,900); noiseHit(sfx,t,.04,.4,'highpass',3000); }
-    else if (id === 'rifle'){ thump(sfx,t,200,60,.16,.55); noiseHit(sfx,t,.16,.45,'lowpass',5000,1200); noiseHit(sfx,t,.03,.35,'highpass',4000); }
-    else if (id === 'sniper'){ thump(sfx,t,120,30,.5,1); noiseHit(sfx,t,.6,.7,'lowpass',3000,300); noiseHit(sfx,t,.05,.5,'highpass',2500); }
-    else if (id === 'rpg'){ noiseHit(sfx,t,.7,.5,'bandpass',600,2500); thump(sfx,t+.06,90,28,.7,1); noiseHit(sfx,t+.06,.8,.5,'lowpass',1500,200); }
-    else if (id === 'knife'){ noiseHit(sfx,t,.18,.35,'bandpass',1500,5000); }
+    if (id === 'ak47'){                 // heavy, chunky, low-end knock
+      thump(sfx,t,190,52,.24,1.05); noiseHit(sfx,t,.05,.8,'highpass',2500); noiseHit(sfx,t,.26,.65,'lowpass',3900,780);
+      tone(sfx,92,t,.11,{type:'square',vol:.14,r:.2,lp:280});
+    }
+    else if (id === 'rifle'){           // snappier, tighter, higher crack
+      thump(sfx,t,245,78,.13,.82); noiseHit(sfx,t,.03,.85,'highpass',3700); noiseHit(sfx,t,.14,.55,'lowpass',5400,1500);
+    }
+    else if (id === 'sniper'){          // enormous boom with a sharp supersonic crack
+      thump(sfx,t,145,26,.58,1.25); noiseHit(sfx,t,.035,.95,'highpass',4400); noiseHit(sfx,t,.72,.8,'lowpass',2700,240);
+      tone(sfx,55,t,.42,{type:'sine',vol:.18,r:.55,lp:130});
+    }
+    else if (id === 'rpg'){             // whoosh-out then a delayed, bassy detonation
+      noiseHit(sfx,t,.04,.75,'highpass',2700); noiseHit(sfx,t,.78,.6,'bandpass',540,2600);
+      thump(sfx,t+.07,95,25,.78,1.2); noiseHit(sfx,t+.07,.95,.65,'lowpass',1450,170);
+    }
+    else if (id === 'knife'){           // fast metallic slice, short and bright
+      noiseHit(sfx,t,.05,.6,'highpass',6200); noiseHit(sfx,t,.2,.42,'bandpass',1800,5200);
+      tone(sfx,2700,t+.015,.04,{type:'triangle',vol:.12,pluck:true,r:.09});
+    }
   }
   function footstep(){ if (ok()) noiseHit(sfx, ctx.currentTime, .07, .12, 'lowpass', 500); }
   function coin(){ if (!ok()) return; const t = ctx.currentTime; tone(sfx,988,t,.07,{type:'sine',vol:.18,pluck:true,r:.2}); tone(sfx,1319,t+.07,.15,{type:'sine',vol:.18,pluck:true,r:.35}); }
@@ -780,8 +794,8 @@ const Snd = (function(){
   }
   function boom(){ if (!ok()) return; const t = ctx.currentTime; thump(sfx,t,100,24,.9,1); noiseHit(sfx,t,1,.7,'lowpass',2200,120); }
   function click(){ if (!ok()) return; const t = ctx.currentTime; thump(sfx,t,760,330,.08,.26); tone(sfx,880,t,.03,{type:'sine',vol:.1,pluck:true,r:.13}); tone(sfx,1320,t+.04,.05,{type:'triangle',vol:.065,pluck:true,r:.2}); tone(sfx,1760,t+.075,.05,{type:'sine',vol:.035,pluck:true,r:.22}); noiseHit(sfx,t,.02,.05,'highpass',6500); }
-  function reloadStart(id){ if (!ok()) return; const t = ctx.currentTime; noiseHit(sfx,t,.05,.35,'bandpass',2200); thump(sfx,t,260,120,.08,.3); if (id === 'rpg') thump(sfx,t+.4,90,50,.3,.5); }
-  function reloadEnd(id){ if (!ok()) return; const t = ctx.currentTime; thump(sfx,t,320,140,.07,.4); noiseHit(sfx,t,.06,.4,'bandpass',3000); noiseHit(sfx,t+.09,.05,.35,'highpass',3500); }
+  function reloadStart(id){ if (!ok()) return; const t = ctx.currentTime; noiseHit(sfx,t,.05,.5,'bandpass',2300); thump(sfx,t,270,120,.09,.45); if (id === 'rpg') thump(sfx,t+.4,90,50,.3,.6); else if (id === 'sniper') noiseHit(sfx,t+.02,.03,.4,'highpass',4000); }
+  function reloadEnd(id){ if (!ok()) return; const t = ctx.currentTime; thump(sfx,t,330,145,.08,.55); noiseHit(sfx,t,.06,.55,'bandpass',3100); noiseHit(sfx,t+.09,.045,.5,'highpass',3700); }
   function headshot(){ if (!ok()) return; const t = ctx.currentTime; tone(sfx,1760,t,.05,{type:'triangle',vol:.16,pluck:true,r:.35}); tone(sfx,2637,t+.04,.1,{type:'sine',vol:.15,pluck:true,r:.55}); tone(sfx,3520,t+.09,.1,{type:'sine',vol:.08,pluck:true,r:.5}); noiseHit(sfx,t,.05,.35,'highpass',5000); thump(sfx,t,220,60,.12,.35); }
   function quest(){ if (!ok()) return; const t = ctx.currentTime; [784, 988, 1319].forEach((f, i) => tone(sfx, f, t + i * .11, .35, { type:'triangle', vol:.14, pluck:true, r:.5 })); }
   function pad(){ if (!ok()) return; const t = ctx.currentTime; thump(sfx,t,200,900,.4,.4); noiseHit(sfx,t,.55,.5,'bandpass',500,3000); tone(sfx,660,t,.12,{type:'triangle',vol:.14,pluck:true,r:.3}); tone(sfx,990,t+.09,.18,{type:'sine',vol:.12,pluck:true,r:.4}); }
@@ -810,17 +824,17 @@ const Snd = (function(){
   function rl(kind){
     if (!ok()) return; const t = ctx.currentTime;
     switch (kind){
-      case 'out':  noiseHit(sfx,t,.05,.4,'bandpass',2400); thump(sfx,t+.02,240,110,.1,.35); break;
-      case 'drop': thump(sfx,t,160,70,.12,.35); noiseHit(sfx,t,.05,.3,'bandpass',1800); tone(sfx,1400,t+.03,.05,{type:'triangle',vol:.05,pluck:true,r:.1}); break;
-      case 'in':   noiseHit(sfx,t,.22,.35,'bandpass',900,2200); thump(sfx,t+.18,200,120,.06,.3); break;
-      case 'slap': thump(sfx,t,300,130,.09,.5); noiseHit(sfx,t,.06,.5,'bandpass',3000); tone(sfx,2200,t,.03,{type:'square',vol:.05,pluck:true,r:.08,lp:4000}); break;
-      case 'rack': noiseHit(sfx,t,.12,.35,'bandpass',1500,3500); thump(sfx,t+.1,260,160,.06,.3); break;
-      case 'bolt': noiseHit(sfx,t,.04,.4,'highpass',3500); thump(sfx,t,320,150,.07,.4); break;
-      case 'shell': [3200,4100,3600].forEach((f, i) => tone(sfx,f,t+.18+i*.07,.03,{type:'sine',vol:.08,pluck:true,r:.12})); break;
-      case 'round': noiseHit(sfx,t,.03,.3,'highpass',4500); tone(sfx,1900,t,.02,{type:'square',vol:.05,pluck:true,r:.05,lp:3500}); break;
-      case 'rocket': noiseHit(sfx,t,1.5,.35,'bandpass',500,1400); thump(sfx,t,120,60,.6,.2); break;
-      case 'thud': thump(sfx,t,110,45,.25,.6); noiseHit(sfx,t,.1,.4,'lowpass',1800); break;
-      case 'latch': thump(sfx,t,280,100,.1,.45); noiseHit(sfx,t,.05,.4,'bandpass',2500); tone(sfx,1700,t,.03,{type:'square',vol:.05,pluck:true,r:.08,lp:3500}); break;
+      case 'out':  noiseHit(sfx,t,.05,.55,'bandpass',2500); thump(sfx,t+.02,250,110,.11,.5); break;
+      case 'drop': thump(sfx,t,170,70,.13,.5); noiseHit(sfx,t,.05,.4,'bandpass',1900); tone(sfx,1500,t+.03,.05,{type:'triangle',vol:.08,pluck:true,r:.1}); break;
+      case 'in':   noiseHit(sfx,t,.22,.5,'bandpass',950,2300); thump(sfx,t+.18,210,125,.08,.45); break;
+      case 'slap': thump(sfx,t,320,140,.1,.75); noiseHit(sfx,t,.055,.7,'bandpass',3200); tone(sfx,2400,t,.03,{type:'square',vol:.09,pluck:true,r:.08,lp:4500}); break;
+      case 'rack': noiseHit(sfx,t,.11,.5,'bandpass',1600,3700); thump(sfx,t+.1,270,165,.08,.5); break;
+      case 'bolt': noiseHit(sfx,t,.035,.6,'highpass',3800); thump(sfx,t,330,155,.09,.6); break;
+      case 'shell': [3200,4100,3600].forEach((f, i) => tone(sfx,f,t+.18+i*.07,.03,{type:'sine',vol:.13,pluck:true,r:.12})); break;
+      case 'round': noiseHit(sfx,t,.03,.45,'highpass',4700); tone(sfx,1950,t,.02,{type:'square',vol:.08,pluck:true,r:.05,lp:3700}); break;
+      case 'rocket': noiseHit(sfx,t,1.5,.5,'bandpass',520,1450); thump(sfx,t,130,62,.65,.3); break;
+      case 'thud': thump(sfx,t,115,48,.26,.85); noiseHit(sfx,t,.1,.55,'lowpass',1850); break;
+      case 'latch': thump(sfx,t,290,105,.11,.65); noiseHit(sfx,t,.05,.55,'bandpass',2600); tone(sfx,1750,t,.03,{type:'square',vol:.08,pluck:true,r:.08,lp:3700}); break;
     }
   }
   return { rl, pad, setWater, quest, headshot, click, reloadStart, reloadEnd, setVol, unlock, setTrack, setPlaylist, toggleMute, isMuted:() => muted, shot, footstep, coin, buy, botShot, hurt, die, slide, hitmark, boom };
@@ -3165,6 +3179,7 @@ const RLS = {};
   });
   RLS.ak47 = magSpec([0, -.06, .4], -.19, .13, .09);
   RLS.rifle = magSpec([0, -.07, .4], -.18, .1, .12);
+  RLS.rifle.ev = [[.2,'out'], [.37,'drop'], [.5,'in'], [.67,'slap'], [.82,'round']];   // lighter, snappier modern-rifle reload - no AK-style bolt rack/clack
   // sniper: open the bolt, eject the case, push in five rounds one by one, close the bolt
   const sL = [0, -.05, .27], sR = [0, -.11, -.11], sev = [[.14,'bolt'], [.3,'rack'], [.33,'shell'], [.78,'rack'], [.86,'bolt']];
   for (let i = 0; i < 5; i++) sev.push([.4 + (i + .5) * .068, 'round']);
@@ -3327,10 +3342,11 @@ function damagePlayer(n, fromX, fromZ){
 function playerDie(){
   P.hp = 0; setHp(); P.dead = true; P.deathLeft = 10; firing = false; P.slide = 0;
   Snd.die();
-  $('death').classList.remove('hidden');
-  $('respawnBtn').disabled = true; $('deathInfo').textContent = 'You can respawn in 10';
   if (document.pointerLockElement) document.exitPointerLock();
   $('stage').style.cursor = 'default';
+  if (duelMode){ duelRoundEnd(false); return; }        // duel rounds are one life - no 10s respawn wait
+  $('death').classList.remove('hidden');
+  $('respawnBtn').disabled = true; $('deathInfo').textContent = 'You can respawn in 10';
 }
 
 /* ---------- bots ---------- */
@@ -3399,6 +3415,9 @@ const botTarget = () => BOT.count;
 
 /* ---------- duels: network-driven opponent avatar ---------- */
 let duelMode = false, remote = null, netRole = null, netTickT = 0, lastMoveLen = 0, remoteWasDead = false;
+let duelRound = 0, duelScoreMe = 0, duelScoreOpp = 0, duelMap = 'desert', duelMatchOver = false;
+let duelMyVote = null, duelOppVote = null, duelMapResolved = false;
+const DUEL_MAX_ROUNDS = 5, DUEL_WIN_AT = 3, DUEL_HP = 500;
 function spawnRemote(x, z, yaw, y){
   remote = { g:makeBotMesh(false), x, y:y || 0, z, yaw, walkT:0, mv:false, hp:100, dead:false,
              netX:x, netY:y || 0, netZ:z, netYaw:yaw, netMoving:false, netHp:100, netDead:false };
@@ -3440,6 +3459,38 @@ function findSpawn(){
     return [x, z];
   }
   return null;
+}
+/* ---------- duel round spawns: two safe spots, far apart, on the current map ---------- */
+function findDuelSpawn(avoidX, avoidZ, minDist){
+  if (MAP.nav){                                                           // castle: any room, on any floor
+    const N = MAP.nav;
+    for (let i = 0; i < 90; i++){
+      const id = N.spawn[Math.random() * N.spawn.length | 0], p = N.cen(id), L = Math.floor(id / (N.W * N.H)), y = cTop(L);
+      if (Math.hypot(p[0] - avoidX, p[1] - avoidZ) < minDist) continue;
+      return [p[0], p[1], y];
+    }
+    return null;
+  }
+  const h = MAP.half - 6;
+  for (let i = 0; i < 90; i++){
+    const x = (Math.random()*2-1)*h, z = (Math.random()*2-1)*h;
+    if (Math.hypot(x - avoidX, z - avoidZ) < minDist || blocked(x, 0, z, .45, 1.8)) continue;
+    return [x, z, MAP.hf ? MAP.hf(x, z) : 0];
+  }
+  return null;
+}
+function pickDuelSpawns(minDist){
+  minDist = minDist == null ? 50 : minDist;
+  const a = findDuelSpawn(1e9, 1e9, 0) || [0, 0, 0];
+  let b = null;
+  for (let md = minDist; md >= 15 && !b; md -= 7) b = findDuelSpawn(a[0], a[1], md);
+  if (!b) b = [a[0] + 20, a[1], a[2] || 0];                 // last-resort fallback, never leave a round un-spawnable
+  const dx = b[0] - a[0], dz = b[1] - a[1];
+  const yawA = Math.atan2(dx, -dz), yawB = Math.atan2(-dx, dz);
+  return {
+    host:  { x:a[0], z:a[1], y:a[2] || 0, yaw:yawA },
+    guest: { x:b[0], z:b[1], y:b[2] || 0, yaw:yawB }
+  };
 }
 function navGo(b, x, z, y){                                                  // castle: plan a route (stairs included)
   const N = MAP.nav, s = navNear(N, b.x, b.z, b.y), g = navNear(N, x, z, y);
@@ -4043,7 +4094,14 @@ function battleUpdate(dt, t){
     netTick(dt);
   }
   if (!duelMode && !won && !P.dead && spawned >= BOT.count && alive === 0){ won = true; winT = 3.6; questAdd('win'); $('win').classList.remove('hidden'); Snd.headshot(); if (document.pointerLockElement) document.exitPointerLock(); $('pause').classList.add('hidden'); setTimeout(() => { if (mode === 'battle' && won) endBattle(); }, 4200); }
-  if (won){ winT -= dt; if (winT <= 0){ won = false; if (duelMode) endDuel(); else endBattle(); return; } }
+  if (won){ winT -= dt; if (winT <= 0){
+    won = false;
+    if (duelMode){
+      if (duelMatchOver) endDuel();
+      else if (netRole === 'host') hostAdvanceDuelRound();  // host decides & broadcasts the next round's spawns; guest just waits for it
+    } else endBattle();
+    return;
+  } }
 
   for (const tr of tracers){ if (tr.life > 0){ tr.life -= dt; if (tr.life <= 0) tr.m.visible = false; } }
   for (let i = particles.length - 1; i >= 0; i--){
@@ -4129,8 +4187,19 @@ $('respawnBtn').onclick = () => { if (P.dead && P.deathLeft <= 0){ if (duelMode)
 
 let curMap = 'desert', previewT = 0;
 const PREVIEW_LEN = 8;
-function endPreview(){ const was = previewT > 0; previewT = 0; const mp = document.getElementById('mapPrev'); if (mp) mp.remove(); firing = false; if (was && mode === 'battle' && !drop) startDrop(); }
-function startBattle(mapName){
+function endPreview(){
+  const was = previewT > 0; previewT = 0;
+  const mp = document.getElementById('mapPrev'); if (mp) mp.remove();
+  firing = false;
+  if (!was || mode !== 'battle') return;
+  if (duelMode){
+    // duels skip the plane/parachute entirely: rounds need to restart fast, and
+    // spawn points are assigned (random, 50m+ apart), not chosen by parachuting in.
+    P.onGround = true; P.vy = 0; $('cross').style.opacity = 1;
+    if (vm) vm.visible = true; if (vmArmG) vmArmG.visible = true;
+  } else if (!drop) startDrop();
+}
+function startBattle(mapName, opts){
   closeModal();
   curMap = mapName || 'desert';
   const loadingMap = !MAPS[curMap];
@@ -4144,8 +4213,9 @@ function startBattle(mapName){
   questAdd('match'); if (curMap === 'snow' || curMap === 'forest' || curMap === 'waterfall') questAdd(curMap);
   $('runCoins').textContent = 0; $('hudKills').textContent = 0; $('hudWallet').textContent = acct.coins;
   ammo = AMMO[loadout.weapon] ? AMMO[loadout.weapon].mag : 0; reloadT = 0; aiming = false; camera.fov = SET.fov; camera.updateProjectionMatrix(); updateAmmo();
-  Object.assign(P, { x:MAP.spawn.x, y:MAP.spawn.y || 0, z:MAP.spawn.z, vy:0, yaw:MAP.spawn.yaw, pitch:0, onGround:true, H:1.75, eye:1.65,
-    hp:100, dead:false, deathLeft:0, slide:0, slideCd:0, cWas:false, hurtT:0, hitT:0, hmT:0, ads:0, yawV:0, mvx:0, spinV:0, ex:0, ez:0, padCd:0, stam:1, tired:false });
+  const spawnAt = (opts && opts.spawn) || MAP.spawn, startHp = (opts && opts.hp) || 100;
+  Object.assign(P, { x:spawnAt.x, y:spawnAt.y || 0, z:spawnAt.z, vy:0, yaw:spawnAt.yaw, pitch:0, onGround:true, H:1.75, eye:1.65,
+    hp:startHp, dead:false, deathLeft:0, slide:0, slideCd:0, cWas:false, hurtT:0, hitT:0, hmT:0, ads:0, yawV:0, mvx:0, spinV:0, ex:0, ez:0, padCd:0, stam:1, tired:false });
   setHp();
   $('death').classList.add('hidden'); $('hurt').style.opacity = 0;
   while (bots.length) removeBot(bots.length - 1);
@@ -4405,12 +4475,28 @@ function netHandle(data){
   }
   else if (data.type === 'shot'){ if (duelMode && !P.dead) damagePlayer(data.dmg, remote ? remote.x : P.x, remote ? remote.z : P.z); }
   else if (data.type === 'peerLeft'){ duelPeerLeft('Your opponent left the duel.'); }
+  else if (data.type === 'mapVote'){ duelOppVote = data.map; updateVoteStatus(); tryResolveMapVote(); }
+  else if (data.type === 'mapChosen'){
+    if (netRole !== 'host'){               // the host already resolved this locally; the guest applies it here
+      duelMap = data.map; duelRound = 0; duelScoreMe = 0; duelScoreOpp = 0; duelMatchOver = false;
+      useMap(data.map);
+      applyRoundSpawns({ round:data.round, host:data.host, guest:data.guest }, true);  // startBattle() inside this closes the modal, once duelRound is already set
+    }
+  }
+  else if (data.type === 'roundSpawns'){ applyRoundSpawns(data, false); }
+}
+function showToast(msg){
+  const old = document.getElementById('toast'); if (old) old.remove();
+  const t = document.createElement('div'); t.id = 'toast'; t.textContent = msg;
+  t.style.cssText = 'position:fixed;top:22px;left:50%;transform:translateX(-50%);background:rgba(16,20,29,.92);border:1px solid #2f394c;color:#e8ecf3;padding:12px 22px;border-radius:10px;font-size:14px;font-weight:600;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,.45);transition:opacity .4s;opacity:1';
+  document.body.appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; setTimeout(() => { if (t.parentNode) t.remove(); }, 400); }, 2800);
 }
 function duelPeerLeft(msg){
   if (!duelMode) return;
   if (document.pointerLockElement) document.exitPointerLock();
-  openModal('<h2>Duel ended</h2><p>' + msg + '</p><div class="row"><button class="btn" id="duelBackOk">BACK TO MENU</button></div>');
-  $('duelBackOk').onclick = () => { closeModal(); endDuel(); };
+  endDuel();                 // teleport straight back to the lobby, no extra click needed
+  showToast(msg);
 }
 function netTick(dt){
   if (!NET.connected) return;
@@ -4420,27 +4506,97 @@ function netTick(dt){
     netSend({ type:'state', x:P.x, y:P.y, z:P.z, yaw:P.yaw, moving: !P.dead && lastMoveLen > 0, hp:P.hp, dead:P.dead });
   }
   if (remote && remote.netDead && !remoteWasDead && !P.dead && !won){
-    remoteWasDead = true; won = true; winT = 3.6;
-    $('win').querySelector('h1').textContent = 'YOU WIN!';
-    $('win').querySelector('p').textContent = 'Your opponent was eliminated.';
-    $('win').classList.remove('hidden');
-    if (document.pointerLockElement) document.exitPointerLock();
-    $('pause').classList.add('hidden');
+    remoteWasDead = true;
+    duelRoundEnd(true);
   }
   if (remote && !remote.netDead) remoteWasDead = false;
 }
-const DUEL_SPAWNS = { host:{ x:0, z:8, yaw:0 }, guest:{ x:0, z:-8, yaw:Math.PI } };
-function startDuel(role){
-  duelMode = true; netRole = role; netTickT = 0; remoteWasDead = false;
-  startBattle('desert');
-  duelMode = true;                     // startBattle doesn't touch this, but set again defensively
-  const mine = DUEL_SPAWNS[role], theirs = DUEL_SPAWNS[role === 'host' ? 'guest' : 'host'];
-  Object.assign(P, { x:mine.x, z:mine.z, yaw:mine.yaw });
-  spawnRemote(theirs.x, theirs.z, theirs.yaw, 0);
+
+/* ---------- duel rounds: map vote -> 5 rounds, 500 HP, random far-apart spawns ---------- */
+const MAP_LABEL = { desert:'DUST YARD', snow:'FROST PEAK', forest:'PINE HOLLOW', waterfall:'PRAIRIE FALLS', castle:'DEFENCE CASTLE' };
+function beginMapVote(){
+  duelMyVote = null; duelOppVote = null; duelMapResolved = false;
+  openModal(`<h2>Pick a map</h2>
+    <p>Both players vote. Agree and that's the map - disagree and one of your two picks is chosen at random.</p>
+    <div class="mapgrid" id="voteGrid">
+      <div class="mapopt" data-m="desert"><div class="pic"></div><b>DUST YARD</b><small>Desert town, big and open</small></div>
+      <div class="mapopt" data-m="snow"><div class="pic"></div><b>FROST PEAK</b><small>Snowy pines and cabins</small></div>
+      <div class="mapopt" data-m="forest"><div class="pic"></div><b>PINE HOLLOW</b><small>Forest, trees and cabins</small></div>
+      <div class="mapopt" data-m="waterfall"><div class="pic"></div><b>PRAIRIE FALLS</b><small>Tribe village and a huge waterfall</small></div>
+      <div class="mapopt" data-m="castle"><div class="pic"></div><b>DEFENCE CASTLE</b><small>Many floors, dungeon, prison and thrones</small></div>
+    </div>
+    <p id="voteStatus" style="font-size:12px;color:#9aa4b8">Pick a map to vote &nbsp;&bull;&nbsp; best of 5 rounds, 500 HP each round</p>`,
+    () => { if (!duelRound && NET.ws){ try{ NET.ws.close(); }catch(e){} NET.ws = null; NET.connected = false; duelMode = false; } });
+  $('voteGrid').onclick = e => {
+    const o = e.target.closest('.mapopt'); if (!o || duelMyVote) return;
+    duelMyVote = o.dataset.m;
+    document.querySelectorAll('#voteGrid .mapopt').forEach(x => x.classList.toggle('on', x === o));
+    netSend({ type:'mapVote', map:duelMyVote });
+    updateVoteStatus();
+    tryResolveMapVote();
+  };
+}
+function updateVoteStatus(){
+  const s = document.getElementById('voteStatus'); if (!s) return;
+  s.textContent = duelMyVote && duelOppVote ? 'Both voted - starting...' : duelMyVote ? 'Waiting for your opponent to vote...' : 'Pick a map to vote';
+}
+function tryResolveMapVote(){
+  if (!duelMyVote || !duelOppVote || duelMapResolved) return;
+  duelMapResolved = true;
+  if (netRole !== 'host') return;             // only the host decides and broadcasts the final map
+  const finalMap = duelMyVote === duelOppVote ? duelMyVote : (Math.random() < .5 ? duelMyVote : duelOppVote);
+  duelMap = finalMap; duelRound = 0; duelScoreMe = 0; duelScoreOpp = 0; duelMatchOver = false;
+  useMap(finalMap);
+  const sp = pickDuelSpawns(50);
+  netSend({ type:'mapChosen', map:finalMap, round:1, host:sp.host, guest:sp.guest });
+  applyRoundSpawns({ round:1, host:sp.host, guest:sp.guest }, true);  // startBattle() inside this closes the modal, once duelRound is already set
+}
+function applyRoundSpawns(data, isFirst){
+  const mine = data[netRole], theirs = data[netRole === 'host' ? 'guest' : 'host'];
+  beginDuelRound(data.round, mine, theirs, !!isFirst);
+}
+function beginDuelRound(round, mySpawn, oppSpawn, isFirst){
+  duelRound = round; remoteWasDead = false; netTickT = 0;
+  if (isFirst){
+    startBattle(duelMap, { hp:DUEL_HP, spawn:mySpawn });
+    duelMode = true;                           // startBattle doesn't touch this - set again defensively
+  } else {
+    Object.assign(P, { x:mySpawn.x, y:mySpawn.y || 0, z:mySpawn.z, vy:0, yaw:mySpawn.yaw, pitch:0, onGround:true,
+      hp:DUEL_HP, dead:false, deathLeft:0, slide:0, slideCd:0, cWas:false, hurtT:0, hitT:0, hmT:0, ads:0, yawV:0, mvx:0, spinV:0, ex:0, ez:0, padCd:0, stam:1, tired:false });
+    setHp();
+    $('death').classList.add('hidden'); $('hurt').style.opacity = 0;
+    won = false; winT = 0; $('win').classList.add('hidden');
+    firing = false; recoil = 0; swing = 0; flashT = 0; fireCd = 0; reloadT = 0;
+    ammo = AMMO[loadout.weapon] ? AMMO[loadout.weapon].mag : 0; updateAmmo();
+    noLock = false; $('pause').classList.add('hidden');
+    try{ if (!document.pointerLockElement) $('stage').requestPointerLock(); }catch(e){}
+  }
+  spawnRemote(oppSpawn.x, oppSpawn.z, oppSpawn.yaw, oppSpawn.y || 0);
+  showToast('Round ' + round + ' of ' + DUEL_MAX_ROUNDS + ' - score ' + duelScoreMe + ' : ' + duelScoreOpp);
+}
+function duelRoundEnd(iWon){
+  if (won) return;                              // already processed this round's outcome
+  if (iWon) duelScoreMe++; else duelScoreOpp++;
+  duelMatchOver = duelScoreMe >= DUEL_WIN_AT || duelScoreOpp >= DUEL_WIN_AT || duelRound >= DUEL_MAX_ROUNDS;
+  won = true; winT = duelMatchOver ? 4.4 : 3;
+  const title = !duelMatchOver ? (iWon ? 'ROUND WON!' : 'ROUND LOST') :
+    duelScoreMe > duelScoreOpp ? 'MATCH WON!' : duelScoreMe < duelScoreOpp ? 'MATCH LOST' : 'MATCH DRAWN';
+  $('win').querySelector('h1').textContent = title;
+  $('win').querySelector('p').textContent = 'Score ' + duelScoreMe + ' - ' + duelScoreOpp + (duelMatchOver ? ' - teleporting you to the lobby...' : ' - next round starting soon...');
+  $('win').classList.remove('hidden');
+  if (document.pointerLockElement) document.exitPointerLock();
+  $('pause').classList.add('hidden');
+}
+function hostAdvanceDuelRound(){
+  const sp = pickDuelSpawns(50), nextRound = duelRound + 1;
+  netSend({ type:'roundSpawns', round:nextRound, host:sp.host, guest:sp.guest });
+  applyRoundSpawns({ round:nextRound, host:sp.host, guest:sp.guest }, false);
 }
 function endDuel(){
   if (NET.ws){ try{ NET.ws.close(); }catch(e){} NET.ws = null; }
   NET.connected = false; NET.roomCode = null; netRole = null;
+  duelRound = 0; duelScoreMe = 0; duelScoreOpp = 0; duelMatchOver = false;
+  duelMyVote = null; duelOppVote = null; duelMapResolved = false;
   endBattle();                         // endBattle() also clears duelMode and the remote avatar
 }
 
@@ -4477,7 +4633,7 @@ document.querySelectorAll('.mode').forEach(btn => {
     else if (m === 'wheel2') openWheel('paid');
     else if (m === 'duels'){
       openModal(`<h2>Duels</h2>
-        <p>Play 1v1 against a friend on Dust Yard. Create a room and send them the code, or join theirs.</p>
+        <p>Play a best-of-5 1v1 against a friend, 500 HP a round. Create a room and send them the code, or join theirs.</p>
         <div class="row">
           <button class="btn" id="mkRoom">CREATE</button>
           <button class="btn alt" id="jnRoom">JOIN</button>
@@ -4486,7 +4642,7 @@ document.querySelectorAll('.mode').forEach(btn => {
       $('mkRoom').onclick = () => {
         $('duelOut').innerHTML = '<p style="margin-top:12px">Connecting to the server...</p>';
         netOnCreated = code => { $('duelOut').innerHTML = `<p style="margin-top:12px">Room code (share with your friend):</p><div class="code">${code}</div><p style="font-size:12px;color:#9aa4b8;margin-top:8px">Waiting for them to join...</p>`; };
-        netOnReady = () => { closeModal(); startDuel('host'); };
+        netOnReady = () => { duelMode = true; beginMapVote(); };
         netConnect(() => netSend({ type:'create' }), msg => { $('duelOut').innerHTML = `<div class="err">${msg}</div>`; });
       };
       $('jnRoom').onclick = () => {
@@ -4496,7 +4652,7 @@ document.querySelectorAll('.mode').forEach(btn => {
           if (!code){ $('joinMsg').textContent = 'Type a room code first.'; return; }
           $('joinMsg').textContent = 'Connecting...';
           netOnJoinErr = reason => { $('joinMsg').textContent = reason; };
-          netOnReady = () => { closeModal(); startDuel('guest'); };
+          netOnReady = () => { duelMode = true; beginMapVote(); };
           netConnect(() => netSend({ type:'join', code }), msg => { $('joinMsg').textContent = msg; });
         };
       };
