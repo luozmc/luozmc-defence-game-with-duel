@@ -399,6 +399,8 @@
       <div class="logo small"><svg id="logoSmall" viewBox="0 0 100 100"></svg><div class="word">DEFENCE</div><div class="copy">&copy; YouTube @luozmc</div></div>
       <div class="right-top">
         <button id="updBtn" class="btn small alt">UPDATES<span class="newdot" id="updDot"></span></button>
+        <button id="evBtn" class="btn small alt">EVENTS<span class="newdot off" id="evDot"></span></button>
+        <button id="ytBtn" class="btn small alt">&#9658; YOUTUBE<span class="newdot" id="ytDot"></span></button>
         <button id="packBtn" class="btn small alt">BACKPACK</button>
         <button id="redeemBtn" class="btn small">REDEEM CODE</button>
         <button id="setBtn" class="gear" title="Settings"><svg viewBox="0 0 100 100" width="44" height="44"><defs><linearGradient id="gg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8c95a1"/><stop offset="1" stop-color="#5d6672"/></linearGradient><linearGradient id="gr" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#b9c0c9"/></linearGradient><linearGradient id="gb" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2d7fdc"/><stop offset="1" stop-color="#0b4fa6"/></linearGradient></defs><path d="M36.7 18.7 L38.4 6.5 L61.6 6.5 L63.3 18.7 L66.5 21.4 L70.5 22.8 L81.8 18.2 L93.5 38.4 L83.7 45.9 L83.0 50.0 L83.7 54.1 L93.5 61.6 L81.8 81.8 L70.5 77.2 L66.5 78.6 L63.3 81.3 L61.6 93.5 L38.4 93.5 L36.7 81.3 L33.5 78.6 L29.5 77.2 L18.2 81.8 L6.5 61.6 L16.3 54.1 L17.0 50.0 L16.3 45.9 L6.5 38.4 L18.2 18.2 L29.5 22.8 L33.5 21.4Z" fill="url(#gg)" stroke="url(#gg)" stroke-width="5" stroke-linejoin="round"/><circle cx="50" cy="50" r="21" fill="url(#gr)"/><circle cx="50" cy="50" r="13" fill="url(#gb)"/></svg></button>
@@ -937,11 +939,17 @@ let loadout = { tone:1, outfit:'recruit', weapon:'ak47', gunSkins:{} };
 function saveAcct(){
   if (!currentUserKey) return;
   const all = store.get(ACCOUNTS_KEY, {});
-  if (all[currentUserKey]){ acct.loadout = loadout; all[currentUserKey] = acct; store.set(ACCOUNTS_KEY, all); }
+  if (all[currentUserKey]){
+    acct.loadout = loadout; all[currentUserKey] = acct; store.set(ACCOUNTS_KEY, all);
+    // best-effort sync so this progress follows the player to another device too;
+    // the local save above already happened, so this never blocks or risks anything
+    if (acct.hash) serverSaveDebounced(acct.name, acct.hash, acct);
+  }
 }
 function newAccount(name, hash){
   return { name, hash, created:Date.now(), coins:150, earned:0,
     owned:{ outfits:['recruit','urban'], finishes:[] },
+    yt:{ clicked:false, subscribed:false },
     loadout:{ tone:1, outfit:'recruit', weapon:'ak47', gunSkins:{} } };
 }
 
@@ -982,19 +990,63 @@ async function submitAuth(){
   err.textContent = '';
   if (!/^[A-Za-z0-9_]{3,16}$/.test(name)){ err.textContent = 'Username must be 3-16 letters, numbers or _ .'; return; }
   if (pass.length < 6){ err.textContent = 'Password must be at least 6 characters.'; return; }
+  if (authMode === 'up' && $('fPass2').value !== pass){ err.textContent = 'Passwords do not match.'; return; }
+
   const accounts = store.get(ACCOUNTS_KEY, {});
   const hash = await hashPassword(pass);
+  const btn = $('authBtn');
+  const prevLabel = btn.textContent;
+  btn.disabled = true; btn.textContent = 'CONNECTING...';
+
+  function finish(finalKey){
+    btn.disabled = false; btn.textContent = prevLabel;
+    store.set(SESSION_KEY, { user: finalKey });
+    $('fPass').value = ''; $('fPass2').value = '';
+    enterMenu(finalKey);
+  }
+
+  let serverResult = null;
+  try{
+    serverResult = authMode === 'up' ? await serverSignup(name, hash) : await serverLogin(name, hash);
+  }catch(e){ serverResult = null; }
+  btn.disabled = false; btn.textContent = prevLabel;
+
+  if (serverResult && serverResult.ok){
+    // the account server has the full picture - sync its copy of this
+    // account down to this device too, so this device matches it
+    accounts[key] = serverResult.acct;
+    store.set(ACCOUNTS_KEY, accounts);
+    return finish(key);
+  }
+
   if (authMode === 'up'){
-    if ($('fPass2').value !== pass){ err.textContent = 'Passwords do not match.'; return; }
+    if (serverResult && serverResult.error){ err.textContent = serverResult.error; return; }
+    // couldn't reach the account server right now - still let them play on
+    // this device; it'll try to register this account with the server again
+    // the next time they sign in while it's reachable
     if (accounts[key]){ err.textContent = 'That username is already taken.'; return; }
     accounts[key] = newAccount(name, hash);
     if (!store.set(ACCOUNTS_KEY, accounts)){ err.textContent = 'Could not save the account (browser storage is blocked).'; return; }
-  } else {
-    if (!accounts[key] || accounts[key].hash !== hash){ err.textContent = 'Wrong username or password.'; return; }
+    return finish(key);
   }
-  store.set(SESSION_KEY, { user: key });
-  $('fPass').value = ''; $('fPass2').value = '';
-  enterMenu(key);
+
+  // sign-in mode
+  if (serverResult && serverResult.code === 'WRONG_PASS'){ err.textContent = 'Wrong username or password.'; return; }
+  if (serverResult && serverResult.code === 'NOT_FOUND'){
+    // this account was created on this device before cross-device logins
+    // existed and was never registered with the server - if the password
+    // matches what's saved locally, let them in and quietly register it
+    // with the server now so it works from any device from here on
+    if (accounts[key] && accounts[key].hash === hash){
+      serverSignup(name, hash, accounts[key]);
+      return finish(key);
+    }
+    err.textContent = 'Wrong username or password.'; return;
+  }
+  // couldn't reach the account server at all - fall back to whatever this
+  // device has saved locally so the game still works offline
+  if (!accounts[key] || accounts[key].hash !== hash){ err.textContent = 'Wrong username or password, or the account server could not be reached.'; return; }
+  finish(key);
 }
 $('authBtn').onclick = submitAuth;
 ['fUser','fPass','fPass2'].forEach(id => $(id).addEventListener('keydown', e => { if (e.key === 'Enter') submitAuth(); }));
@@ -3304,6 +3356,14 @@ function updateRockets(dt){
         if (qx * qx + qy * qy + qz * qz < rad * rad && t < ht){ ht = t; hit = new THREE.Vector3(a.x + d.x * t, a.y + d.y * t, a.z + d.z * t); }
       }
     }
+    // duels have no bots, so without this a rocket just sailed straight through the
+    // opponent and only ever exploded against the map - this is why it never dealt damage
+    if (duelMode && remote && !remote.dead) for (let k = 0; k < 3; k++){
+      const cy = remote.y + (k === 0 ? 1.6 : k === 1 ? 1.15 : .45), rad = (k === 0 ? .19 : k === 1 ? .36 : .3) + .12;
+      const ox = remote.x - a.x, oy = cy - a.y, oz = remote.z - a.z, t = clamp(ox * d.x + oy * d.y + oz * d.z, 0, step);
+      const qx = a.x + d.x * t - remote.x, qy = a.y + d.y * t - cy, qz = a.z + d.z * t - remote.z;
+      if (qx * qx + qy * qy + qz * qz < rad * rad && t < ht){ ht = t; hit = new THREE.Vector3(a.x + d.x * t, a.y + d.y * t, a.z + d.z * t); }
+    }
     ray.ray.origin.copy(a); ray.ray.direction.copy(d); ray.far = step + .25;
     const hs = ray.intersectObjects(MAP.rayTargets, false);
     if (hs.length && hs[0].distance < ht){
@@ -3797,8 +3857,73 @@ function explode(pt){
     const d = Math.hypot(b.x - pt.x, b.z - pt.z, (b.y + 1) - pt.y);
     if (d < 6) hitBot(b, 200 * (1 - d/6) + 20, false, new THREE.Vector3(b.x, b.y + 1.1, b.z));
   }
+  // duels have no bots to splash, so this is the only place a rocket's blast ever
+  // reached the opponent - without it the explosion was purely cosmetic in a duel.
+  // remote.hp is just our local mirror, so we compute the damage here (same way we
+  // would for a direct hit) and send it over, the same as every other weapon does.
+  if (duelMode && remote && !remote.dead){
+    const dr = Math.hypot(remote.x - pt.x, remote.z - pt.z, (remote.y + 1) - pt.y);
+    if (dr < 6){
+      const dmg = Math.round(200 * (1 - dr/6) + 20);
+      const kill = remote.hp - dmg <= 0;
+      $('hitmark').className = kill ? 'kill' : '';
+      Snd.hitmark(kill);
+      dmgNum(new THREE.Vector3(remote.x, remote.y + 1.1, remote.z), dmg, false);
+      netSend({ type:'shot', dmg });
+    }
+  }
   const dp = Math.hypot(P.x - pt.x, P.z - pt.z, (P.y + 1) - pt.y);
   if (dp < 4) damagePlayer(Math.max(5, 35 * (1 - dp/4)), pt.x, pt.z);
+}
+
+/* ---------- the opponent's RPG, seen from your side in a duel ----------
+   damage is already handled above (the shooter's own explode() works out whether
+   it caught you and sends a 'shot'), so this is purely a visual: it flies the same
+   rocket model along the same line, and stops at the map or (using YOUR own live
+   position, so there's no lag) at you - with no damage logic of its own, so there
+   is no risk of it ever double-counting a hit. */
+let remoteRockets = [];
+function spawnRemoteRocket(ox, oy, oz, dx, dy, dz){
+  const start = new THREE.Vector3(ox, oy, oz), dir = new THREE.Vector3(dx, dy, dz);
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(.05, .05, .5, 8), new THREE.MeshStandardMaterial({ color:0x56622f, roughness:.5 })); body.rotation.x = Math.PI / 2;
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(.09, .22, 8), new THREE.MeshStandardMaterial({ color:0xc0392b, roughness:.4 })); nose.rotation.x = Math.PI / 2; nose.position.z = .36;
+  const flame = new THREE.Mesh(new THREE.ConeGeometry(.07, .45, 8), new THREE.MeshBasicMaterial({ color:0xffa030, transparent:true, opacity:.9, fog:false })); flame.rotation.x = -Math.PI / 2; flame.position.z = -.45;
+  g.add(body); g.add(nose); g.add(flame);
+  g.position.copy(start); g.lookAt(start.clone().add(dir)); scene.add(g);
+  remoteRockets.push({ g, flame, p:start.clone(), dir, spd:46, life:5, tr:0 });
+  puff(start, 8, .12, 1.4, 0xdedede);
+}
+function explodeVisual(pt){ fireball(pt); Snd.boom(); puff(pt, 30, .4, 7); puff(pt, 12, .25, 9, 0xffa040); }
+function updateRemoteRockets(dt){
+  for (let i = remoteRockets.length - 1; i >= 0; i--){
+    const r = remoteRockets[i]; r.life -= dt;
+    const step = r.spd * dt, a = r.p, d = r.dir;
+    let hit = null, ht = step + .25;
+    // the one thing that can block the opponent's rocket from YOUR point of view is
+    // YOU - your own live position, not a synced one, so this always lines up exactly
+    if (!P.dead) for (let k = 0; k < 3; k++){
+      const cy = P.y + (k === 0 ? 1.6 : k === 1 ? 1.15 : .45), rad = (k === 0 ? .19 : k === 1 ? .36 : .3) + .12;
+      const ox = P.x - a.x, oy = cy - a.y, oz = P.z - a.z, t = clamp(ox * d.x + oy * d.y + oz * d.z, 0, step);
+      const qx = a.x + d.x * t - P.x, qy = a.y + d.y * t - cy, qz = a.z + d.z * t - P.z;
+      if (qx * qx + qy * qy + qz * qz < rad * rad && t < ht){ ht = t; hit = new THREE.Vector3(a.x + d.x * t, a.y + d.y * t, a.z + d.z * t); }
+    }
+    ray.ray.origin.copy(a); ray.ray.direction.copy(d); ray.far = step + .25;
+    const hs = ray.intersectObjects(MAP.rayTargets, false);
+    if (hs.length && hs[0].distance < ht){
+      const h = hs[0], n = h.face ? h.face.normal.clone() : new THREE.Vector3(0, 1, 0);
+      if (h.object.isInstancedMesh){ h.object.getMatrixAt(h.instanceId, _m4); n.transformDirection(_m4); }
+      n.transformDirection(h.object.matrixWorld);
+      ht = h.distance; hit = h.point.clone().addScaledVector(n, .4);
+    }
+    const nx = a.clone().addScaledVector(d, step);
+    if (!hit && nx.y < .1){ hit = nx.clone(); hit.y = .2; }
+    if (!hit && r.life <= 0) hit = nx.clone();
+    if (hit){ scene.remove(r.g); remoteRockets.splice(i, 1); explodeVisual(hit); continue; }
+    r.p.copy(nx); r.g.position.copy(nx);
+    r.flame.scale.set(1, .8 + Math.random() * .5, 1);
+    r.tr -= dt; if (r.tr <= 0){ r.tr = .035; puff(r.p, 1, .1, .25, 0xcfcfcf); }
+  }
 }
 
 function shoot(){
@@ -3842,7 +3967,11 @@ function shoot(){
       if (t < bt){ bt = t; best = null; bestIsRemote = true; bHead = k === 0; }
     }
   }
-  if (id === 'rpg'){ launchRocket(o.clone().addScaledVector(d, Math.min(bt, 140))); return; }
+  if (id === 'rpg'){
+    launchRocket(o.clone().addScaledVector(d, Math.min(bt, 140)));
+    if (duelMode) netSend({ type:'rocket', x:o.x, y:o.y, z:o.z, dx:d.x, dy:d.y, dz:d.z });   // so the opponent actually sees it coming - damage is sent separately when it explodes
+    return;
+  }
   if (best){
     const pt = o.clone().addScaledVector(d, bt);
     hitBot(best, Math.round(WDMG[id][bHead ? 1 : 0] * (.94 + Math.random() * .12)), bHead, pt);
@@ -4086,6 +4215,11 @@ function dropAct(){                       // space / F / click
 }
 function dropUpdate(dt, t){
   const D = drop; D.t += dt; firing = false;
+  // keep talking to the opponent (and animating their avatar) while YOU are still
+  // parachuting in too - this used to stop dead during your own drop, which is why
+  // the opponent looked like they were just standing on the ground the whole time
+  // instead of falling in alongside you
+  if (duelMode){ updateRemoteVisual(dt); netTick(dt); }
   // the plane keeps flying along its route
   if (D.plane){
     D.ph = Math.min(D.total, D.ph + dt); const k = D.ph / D.total;
@@ -4224,7 +4358,7 @@ function battleUpdate(dt, t){
   poseViewmodel();
 
   const alive = updateBots(dt);
-  updateRockets(dt); updateFx(dt);
+  updateRockets(dt); updateRemoteRockets(dt); updateFx(dt);
   updateFoot();
   if (duelMode){
     updateRemoteVisual(dt);
@@ -4448,7 +4582,7 @@ function endBattle(){
   tracers.forEach(t => { t.m.visible = false; t.life = 0; });
   while (bots.length) removeBot(bots.length - 1);
   duelMode = false; despawnRemote(); remoteWasDead = false;
-  rockets.forEach(r => scene.remove(r.g)); rockets = []; fxs.forEach(f => scene.remove(f.m)); fxs = [];
+  rockets.forEach(r => scene.remove(r.g)); rockets = []; remoteRockets.forEach(r => scene.remove(r.g)); remoteRockets = []; fxs.forEach(f => scene.remove(f.m)); fxs = [];
   P.dead = false; noLock = false; won = false; $('win').classList.add('hidden');
   $('death').classList.add('hidden'); $('hurt').style.opacity = 0;
   useMap('desert');                                  // the lobby always sits in the desert
@@ -4644,6 +4778,48 @@ function askBuy(item){
    (Step "Deploy the server" in the setup notes), e.g.
    'wss://defence-duel-server.onrender.com'                             */
 const SERVER_URL = 'wss://defence-server.onrender.com';
+// Same server, but the plain https:// address instead of wss:// - used for
+// the small account API (signup/login/save) that makes logins work across
+// devices, not just the websocket duel traffic.
+const SERVER_HTTP = SERVER_URL.replace(/^wss:/, 'https:').replace(/^ws:/, 'http:');
+
+function fetchWithTimeout(url, opts, ms){
+  const ctrl = new AbortController();
+  const id = setTimeout(() => ctrl.abort(), ms);
+  return fetch(url, Object.assign({}, opts, { signal: ctrl.signal })).finally(() => clearTimeout(id));
+}
+// The account server can be asleep (free hosting spins down when idle) and
+// take a while to wake up, so these get a generous timeout - this only
+// happens on sign in / sign up, not during normal play.
+async function serverSignup(name, hash, existingAcct){
+  try{
+    const body = { name, hash };
+    if (existingAcct) body.acct = existingAcct;
+    const r = await fetchWithTimeout(SERVER_HTTP + '/signup', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) }, 20000);
+    return await r.json();
+  }catch(e){ return null; }
+}
+async function serverLogin(name, hash){
+  try{
+    const r = await fetchWithTimeout(SERVER_HTTP + '/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name, hash }) }, 20000);
+    return await r.json();
+  }catch(e){ return null; }
+}
+let saveSyncTimer = null, saveSyncPending = null;
+function serverSaveNow(name, hash, acctObj){
+  fetchWithTimeout(SERVER_HTTP + '/save', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name, hash, acct: acctObj }) }, 12000).catch(() => {});
+}
+function serverSaveDebounced(name, hash, acctObj){
+  // saveAcct() fires a lot (every coin change, every equip, etc.) - batch
+  // those into at most one network call every few seconds.
+  saveSyncPending = { name, hash, acct: acctObj };
+  if (saveSyncTimer) return;
+  saveSyncTimer = setTimeout(() => {
+    saveSyncTimer = null;
+    const p = saveSyncPending; saveSyncPending = null;
+    if (p) serverSaveNow(p.name, p.hash, p.acct);
+  }, 3000);
+}
 
 const NET = { ws:null, connected:false, roomCode:null };
 let netOnCreated = null, netOnJoinErr = null, netOnReady = null;
@@ -4686,6 +4862,7 @@ function netHandle(data){
     }
   }
   else if (data.type === 'roundSpawns'){ applyRoundSpawns(data, false); }
+  else if (data.type === 'rocket'){ if (duelMode && !P.dead) spawnRemoteRocket(data.x, data.y, data.z, data.dx, data.dy, data.dz); }
   else if (data.type === 'chat'){ chatAdd(data.name || (duelMode ? 'Opponent' : 'Player'), String(data.text || '').slice(0, 140)); }
 }
 function showToast(msg){
@@ -4783,7 +4960,10 @@ function beginDuelRound(round, mySpawn, oppSpawn, isFirst){
     noLock = false; $('pause').classList.add('hidden');
     try{ if (!document.pointerLockElement) $('stage').requestPointerLock(); }catch(e){}
   }
-  spawnRemote(oppSpawn.x, oppSpawn.z, oppSpawn.yaw, oppSpawn.y || 0);
+  // round 1 opens with a parachute drop for both players - start the opponent's avatar
+  // up at the same altitude so you actually watch them fall and land too, instead of
+  // them just standing there already on the ground while only you parachute in
+  spawnRemote(oppSpawn.x, oppSpawn.z, oppSpawn.yaw, isFirst ? DROP_ALT : (oppSpawn.y || 0));
   showToast('Round ' + round + ' of ' + DUEL_MAX_ROUNDS + ' - score ' + duelScoreMe + ' : ' + duelScoreOpp);
 }
 function duelRoundEnd(iWon){
@@ -4893,6 +5073,7 @@ function enterMenu(key){
   if (acct.coins == null) acct.coins = 150;
   if (acct.earned == null) acct.earned = 0;
   if (!acct.owned) acct.owned = { outfits:['recruit','urban'], finishes:[] };
+  if (!acct.yt) acct.yt = { clicked:false, subscribed:false };
   const L = acct.loadout || {};
   if (typeof L.outfit === 'number') L.outfit = (OUTFITS[L.outfit] || OUTFITS[0]).id;
   L.tone = L.tone == null ? 1 : L.tone;
@@ -4904,7 +5085,7 @@ function enterMenu(key){
   loadout = L;
   saveAcct();
   $('uname').textContent = acct.name;
-  updateWallet(); updateWheelBadge(); renderQuests();
+  updateWallet(); updateWheelBadge(); renderQuests(); updateYtDot();
   $('mapfade').style.opacity = 0; authFade = 0; authMapT = 0; useMap('desert');
   if (!acct.seenTut){ acct.seenTut = true; saveAcct(); setTimeout(() => openTutorial(0), 600); }
   mode = 'menu';
@@ -5318,6 +5499,78 @@ function openUpdates(){
 }
 $('updBtn').onclick = openUpdates;
 if (store.get('defence_seenver', '') === APP_VER) $('updDot').classList.add('off');
+
+/* ---------- events board ----------
+   This reads a small separate file (events.json, sitting right next to
+   this game's index.html on GitHub) so new events/codes can be posted by
+   editing just that one small file - no need to touch or re-upload the
+   whole game. Each entry looks like:
+     { "id":"unique-id", "date":"Nov 2026", "title":"...", "body":"...", "code":"OPTIONAL-CODE" }
+*/
+const EVENTS_URL = 'events.json';
+const EVENTS_SEEN_KEY = 'defence_events_seen_v1';
+let eventsCache = null;
+async function loadEvents(){
+  try{
+    const r = await fetchWithTimeout(EVENTS_URL + '?t=' + Date.now(), { cache:'no-store' }, 8000);
+    if (!r.ok) return [];
+    const list = await r.json();
+    return Array.isArray(list) ? list : [];
+  }catch(e){ return []; }
+}
+function updateEventsDot(){
+  const d = $('evDot'); if (!d) return;
+  if (!eventsCache || !eventsCache.length){ d.classList.add('off'); return; }
+  const seen = store.get(EVENTS_SEEN_KEY, []);
+  d.classList.toggle('off', !eventsCache.some(e => !seen.includes(e.id)));
+}
+async function openEvents(){
+  if (eventsCache == null) eventsCache = await loadEvents();
+  const seen = store.get(EVENTS_SEEN_KEY, []);
+  store.set(EVENTS_SEEN_KEY, Array.from(new Set(seen.concat(eventsCache.map(e => e.id)))));
+  updateEventsDot();
+  if (!eventsCache.length){
+    openModal('<h2>Events</h2><p style="color:#9aa4b8">Nothing posted right now - check back soon!</p>');
+  } else {
+    openModal('<h2>Events</h2><div id="evBody">' + eventsCache.slice().reverse().map(e =>
+      '<div class="updv"><h3>' + (e.title || 'Event') + '<small>' + (e.date || '') + '</small></h3>' +
+      (e.body ? '<p style="margin:6px 0 8px;color:#cfd6e3">' + e.body + '</p>' : '') +
+      (e.code ? '<p style="margin:0"><b style="color:#ffd24a">Code:</b> <code style="background:#1a2030;padding:3px 8px;border-radius:6px">' + e.code + '</code></p>' : '')
+      + '</div>'
+    ).join('') + '</div>');
+  }
+  $('modalBox').style.width = 'min(620px,94vw)';
+}
+$('evBtn').onclick = openEvents;
+loadEvents().then(list => { eventsCache = list; updateEventsDot(); });
+
+/* ---------- YouTube rewards ---------- */
+const YT_URL = 'https://www.youtube.com/@Luozmc';
+function updateYtDot(){
+  const d = $('ytDot'); if (!d) return;
+  d.classList.toggle('off', !!(acct && acct.yt && acct.yt.clicked && acct.yt.subscribed));
+}
+function openYouTube(){
+  const y = acct.yt || (acct.yt = { clicked:false, subscribed:false });
+  openModal('<h2>▶ YOUTUBE</h2>' +
+    '<p>Check out the channel and grab some free Decoins:</p>' +
+    '<div style="margin:14px 0"><button class="btn" id="ytWatch">' + (y.clicked ? 'OPEN CHANNEL' : 'WATCH → +20 DECOINS') + '</button>' +
+    (y.clicked ? ' <span style="color:#3ddc5a;font-weight:700;margin-left:8px">✓ claimed</span>' : '') + '</div>' +
+    '<div style="margin:14px 0"><button class="btn alt" id="ytSub"' + (y.subscribed ? ' disabled' : '') + '>' + (y.subscribed ? '✓ SUBSCRIBED' : 'I’VE SUBSCRIBED → +30 DECOINS') + '</button></div>' +
+    '<p style="color:#9aa4b8;font-size:12px;margin-top:10px">We can’t check YouTube directly from here, so the subscribe bonus is on the honor system — please only claim it if you’ve actually subscribed.</p>');
+  $('modalBox').style.width = 'min(460px,92vw)';
+  $('ytWatch').onclick = () => {
+    window.open(YT_URL, '_blank', 'noopener');
+    if (!y.clicked){ y.clicked = true; acct.coins += 20; saveAcct(); updateWallet(); Snd.coin(); showToast('+20 Decoins - thanks for checking out the channel!'); }
+    updateYtDot(); openYouTube();   // refresh the modal in place to show the new state
+  };
+  $('ytSub').onclick = () => {
+    if (y.subscribed) return;
+    y.subscribed = true; acct.coins += 30; saveAcct(); updateWallet(); Snd.coin(); showToast('+30 Decoins - thanks for subscribing!');
+    updateYtDot(); openYouTube();
+  };
+}
+$('ytBtn').onclick = openYouTube;
 
 /* ---------- chat (saved on this device; a friendly bot answers) ---------- */
 const CHAT_KEY = 'defence_chat_v1';
