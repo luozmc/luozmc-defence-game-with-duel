@@ -318,6 +318,9 @@
   .mapopt{cursor:pointer;border:2px solid var(--line);border-radius:10px;overflow:hidden;background:#10141d;transition:border-color .15s,transform .15s}
   .mapopt:hover{transform:translateY(-2px);border-color:#4a5775}
   .mapopt.on{border-color:var(--accent)}
+  .mapopt{position:relative}
+  .mapopt.opp{border-color:#4ad0ff}
+  .mapopt .oppTag{position:absolute;top:6px;right:6px;background:#1a4a5c;color:#8fe8ff;font-size:9px;font-weight:800;letter-spacing:.05em;padding:3px 6px;border-radius:6px;border:1px solid #4ad0ff}
   .mapopt .pic{height:90px}
   .mapopt.desert .pic{background:linear-gradient(180deg,#58a8ec 0%,#9fd0f2 50%,#d8b06a 51%,#c49a58 100%)}
   .mapopt.snow .pic{background:linear-gradient(180deg,#b9c9d8 0%,#dce6ee 45%,#f4f8fb 46%,#cfdbe6 100%)}
@@ -3057,7 +3060,7 @@ const REWARDS = { bot:1, publicKill:2, duelKill:0 };
 const BOT = { count:15, creepy:2, base:20, perCoins:3, max:100, acc:.2, accMul:.7, dmg:6, range:58, hp:100 };   // bot tuning
 const WDMG = { sniper:[112,150], ak47:[28,56], rifle:[22,44], rpg:[200,200], knife:[55,55] };
 const P = { x:0, y:0, z:0, vy:0, yaw:0, pitch:0, onGround:true, R:.35, H:1.75, eye:1.65,
-            hp:100, dead:false, deathLeft:0, slide:0, slideCd:0, sdx:0, sdz:1, cWas:false, hurtT:0, hitT:0, hmT:0, ads:0, yawV:0, mvx:0, spinV:0, ex:0, ez:0, padCd:0 };
+            hp:100, maxHp:100, dead:false, deathLeft:0, slide:0, slideCd:0, sdx:0, sdz:1, cWas:false, hurtT:0, hitT:0, hmT:0, ads:0, yawV:0, mvx:0, spinV:0, ex:0, ez:0, padCd:0 };
 let vm = null, vmW = null, vmArms = null, vmFlash = null, flashLight = null;
 let snKick = 0;
 let runCoins = 0, kills = 0, firing = false, fireCd = 0, recoil = 0, swing = 0, flashT = 0, walkB = 0, stepT = 0;
@@ -3336,9 +3339,9 @@ function tracer(ax, ay, az, bx, by, bz){
 
 /* ---------- player health ---------- */
 function setHp(){
-  const hp = Math.max(0, Math.round(P.hp));
-  $('hpNum').textContent = hp; $('hpFill').style.width = hp + '%';
-  $('hpFill').className = hp < 30 ? 'low' : hp < 60 ? 'mid' : '';
+  const hp = Math.max(0, Math.round(P.hp)), max = P.maxHp || 100, pct = Math.max(0, Math.min(100, Math.round(100 * hp / max)));
+  $('hpNum').textContent = hp; $('hpFill').style.width = pct + '%';
+  $('hpFill').className = pct < 30 ? 'low' : pct < 60 ? 'mid' : '';
 }
 function damagePlayer(n, fromX, fromZ){
   if (P.dead) return;
@@ -3408,6 +3411,42 @@ function makeBotMesh(creepy){
   return g;
 }
 const _bq = new THREE.Quaternion(), _bp = new THREE.Vector3();
+/* the duels opponent's avatar: built from their actual skin tone, outfit and
+   equipped weapon (synced over the network), instead of the generic bot look */
+function makeRemoteMesh(tone, outfitId, weaponId, gunSkinId){
+  const o = OUTFITS.find(x => x.id === outfitId) || OUTFITS[0];
+  const t = TONES[tone == null ? 1 : tone] || TONES[1];
+  const mats = solMats({ skin:t.c, shirt:o.shirt, pants:o.pants, vest:o.accent });
+  const g = new THREE.Group(); g.rotation.order = 'YXZ';
+  const sol = solMake({ mats });
+  g.add(sol.g);
+  const wid = (weaponId && WSCALE[weaponId]) ? weaponId : 'ak47', pose = POSES[wid] || POSES.ak47;
+  const gun = makeWeapon(wid, gunSkinId || 'default');
+  gun.scale.setScalar(WSCALE[wid]);
+  gun.position.set(pose.pos[0], pose.pos[1], pose.pos[2]); gun.rotation.x = pose.rot || 0;
+  g.add(gun); gun.updateMatrix();
+  solReset(sol);
+  _bq.copy(gun.quaternion);
+  if (gun.userData.R) solArm(sol, 'R', _bp.copy(gun.userData.R).applyMatrix4(gun.matrix), _bq);
+  if (gun.userData.L) solArm(sol, 'L', _bp.copy(gun.userData.L).applyMatrix4(gun.matrix), _bq);   // knife has no left-hand anchor
+  solWriteBones(sol);
+  sol.legsI = [1,2,3,4,37,38,39,40];
+  g.userData.sol = sol; g.userData.sw = 0; g.userData.wid = wid; g.userData.gunSkin = gunSkinId || 'default'; g.userData.tone = tone; g.userData.outfit = outfitId;
+  return g;
+}
+function makeNameTag(text){
+  const cnv = document.createElement('canvas'); cnv.width = 256; cnv.height = 64;
+  const c = cnv.getContext('2d');
+  c.font = '700 30px Fredoka, Arial, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  const tw = Math.min(238, c.measureText(text).width + 30);
+  c.fillStyle = 'rgba(10,13,20,.62)'; c.fillRect(128 - tw / 2, 13, tw, 38);
+  c.fillStyle = '#ffd24a'; c.fillText(text, 128, 33);
+  const tex = new THREE.CanvasTexture(cnv); tex.needsUpdate = true;
+  const mat = new THREE.SpriteMaterial({ map:tex, transparent:true });
+  const spr = new THREE.Sprite(mat);
+  spr.scale.set(1.5, .375, 1); spr.position.y = 2.2;
+  return spr;
+}
 function spawnBot(x, z, creepy, y){
   const pi = botPool.findIndex(q => q.creepy === !!creepy);
   const b = pi >= 0 ? botPool.splice(pi, 1)[0] : { g:makeBotMesh(creepy), creepy:!!creepy };
@@ -3427,11 +3466,29 @@ let duelMode = false, remote = null, netRole = null, netTickT = 0, lastMoveLen =
 let duelRound = 0, duelScoreMe = 0, duelScoreOpp = 0, duelMap = 'desert', duelMatchOver = false;
 let duelMyVote = null, duelOppVote = null, duelMapResolved = false;
 const DUEL_MAX_ROUNDS = 5, DUEL_WIN_AT = 3, DUEL_HP = 500;
+// what we know about the opponent's appearance - filled in from their 'loadout' message
+let oppLoadout = { name:'OPPONENT', tone:1, outfit:'recruit', weapon:'ak47', gunSkin:'default' };
+function myLoadoutMsg(){
+  return { type:'loadout', name:acct && acct.name || 'Player', tone:loadout.tone, outfit:loadout.outfit, weapon:loadout.weapon, gunSkin:loadout.gunSkins[loadout.weapon] || 'default' };
+}
 function spawnRemote(x, z, yaw, y){
-  remote = { g:makeBotMesh(false), x, y:y || 0, z, yaw, walkT:0, mv:false, hp:100, dead:false, sliding:false, slidePose:-1,
+  const g = makeRemoteMesh(oppLoadout.tone, oppLoadout.outfit, oppLoadout.weapon, oppLoadout.gunSkin);
+  const tag = makeNameTag(oppLoadout.name || 'OPPONENT'); g.add(tag);
+  remote = { g, tag, x, y:y || 0, z, yaw, walkT:0, mv:false, hp:100, dead:false, sliding:false, slidePose:-1,
              netX:x, netY:y || 0, netZ:z, netYaw:yaw, netMoving:false, netHp:100, netDead:false, netSliding:false };
-  remote.g.position.set(x, remote.y, z); remote.g.rotation.set(0, yaw, 0); remote.g.visible = true;
+  remote.g.position.set(x, remote.y, z); remote.g.rotation.set(0, yaw + Math.PI, 0); remote.g.visible = true;
   if (!remote.g.parent) scene.add(remote.g);
+}
+// the opponent picked a different gun (or we learn their look late) - rebuild their avatar in place
+function rebuildRemoteMesh(){
+  if (!remote) return;
+  const oldG = remote.g, pos = oldG.position.clone(), rot = oldG.rotation.clone();
+  const g = makeRemoteMesh(oppLoadout.tone, oppLoadout.outfit, oppLoadout.weapon, oppLoadout.gunSkin);
+  const tag = makeNameTag(oppLoadout.name || 'OPPONENT'); g.add(tag);
+  g.position.copy(pos); g.rotation.copy(rot); g.visible = oldG.visible;
+  scene.remove(oldG);
+  scene.add(g);
+  remote.g = g; remote.tag = tag; remote.slidePose = -1; remote.g.userData.sw = 0;
 }
 function despawnRemote(){
   if (remote){ remote.g.visible = false; if (remote.g.parent) scene.remove(remote.g); remote = null; }
@@ -3458,7 +3515,17 @@ function updateRemoteVisual(dt){
     }
   }
   remote.g.visible = !remote.dead;
-  remote.g.position.set(remote.x, remote.y - (remote.sliding ? .35 : 0), remote.z); remote.g.rotation.set(remote.sliding ? -.18 : 0, remote.yaw, 0);
+  remote.g.position.set(remote.x, remote.y - (remote.sliding ? .35 : 0), remote.z); remote.g.rotation.set(remote.sliding ? -.18 : 0, remote.yaw + Math.PI, 0);
+  // kick up dust under the opponent's feet as they run, so their footsteps are
+  // something you can actually SEE (you can't hear a remote player's steps) -
+  // sized and colored to read clearly against any map, not just a subtle puff
+  if (remote.mv && !remote.dead && !remote.sliding){
+    remote.stepT = (remote.stepT == null ? 0 : remote.stepT) - dt;
+    if (remote.stepT <= 0){
+      puff(new THREE.Vector3(remote.x, remote.y + .12, remote.z), 5, .13, 1.6, 0xf2ecd8);
+      remote.stepT = .3;
+    }
+  } else remote.stepT = 0;
 }
 function findSpawn(){
   if (MAP.nav){                                                             // castle: any room, on any floor
@@ -4233,7 +4300,7 @@ function startAutoLandDuel(){
   drop = { phase:'fall', t:1, dx:0, dz:0, vx:0, vz:0, chute:null, plane:null, fov:SET.fov, auto:true, duelAuto:true,
            fogN:scene.fog ? scene.fog.near : 0, fogF:scene.fog ? scene.fog.far : 0 };
   if (scene.fog){ scene.fog.near = Math.max(scene.fog.near, 220); scene.fog.far = Math.max(scene.fog.far, 700); }
-  P.vy = -2; P.onGround = false; P.ex = P.ez = 0;
+  P.y = DROP_ALT; P.vy = -2; P.onGround = false; P.ex = P.ez = 0;
   firing = false; aiming = false;
   if (vm) vm.visible = false; if (vmArmG) vmArmG.visible = false;
   $('cross').style.opacity = 0;
@@ -4253,6 +4320,7 @@ function showWeaponSelect(onDone){
     if (resolved) return; resolved = true;
     clearInterval(iv); el.remove();
     if (id && id !== loadout.weapon){ loadout.weapon = id; saveAcct(); }
+    if (duelMode) netSend(myLoadoutMsg());   // let the opponent know which gun we actually picked
     onDone();
   }
   el.querySelector('#wsGuns').onclick = e => {
@@ -4283,7 +4351,7 @@ function startBattle(mapName, opts){
   ammo = AMMO[loadout.weapon] ? AMMO[loadout.weapon].mag : 0; reloadT = 0; aiming = false; camera.fov = SET.fov; camera.updateProjectionMatrix(); updateAmmo();
   const spawnAt = (opts && opts.spawn) || MAP.spawn, startHp = (opts && opts.hp) || 100;
   Object.assign(P, { x:spawnAt.x, y:spawnAt.y || 0, z:spawnAt.z, vy:0, yaw:spawnAt.yaw, pitch:0, onGround:true, H:1.75, eye:1.65,
-    hp:startHp, dead:false, deathLeft:0, slide:0, slideCd:0, cWas:false, hurtT:0, hitT:0, hmT:0, ads:0, yawV:0, mvx:0, spinV:0, ex:0, ez:0, padCd:0, stam:1, tired:false });
+    hp:startHp, maxHp:startHp, dead:false, deathLeft:0, slide:0, slideCd:0, cWas:false, hurtT:0, hitT:0, hmT:0, ads:0, yawV:0, mvx:0, spinV:0, ex:0, ez:0, padCd:0, stam:1, tired:false });
   setHp();
   $('death').classList.add('hidden'); $('hurt').style.opacity = 0;
   while (bots.length) removeBot(bots.length - 1);
@@ -4548,7 +4616,11 @@ function netHandle(data){
   }
   else if (data.type === 'shot'){ if (duelMode && !P.dead) damagePlayer(data.dmg, remote ? remote.x : P.x, remote ? remote.z : P.z); }
   else if (data.type === 'peerLeft'){ duelPeerLeft('Your opponent left the duel.'); }
-  else if (data.type === 'mapVote'){ duelOppVote = data.map; updateVoteStatus(); tryResolveMapVote(); }
+  else if (data.type === 'loadout'){
+    oppLoadout = { name:data.name || 'OPPONENT', tone:data.tone, outfit:data.outfit, weapon:data.weapon, gunSkin:data.gunSkin || 'default' };
+    if (remote) rebuildRemoteMesh();          // they changed gun/skin mid-match (e.g. picked a weapon) - refresh their avatar
+  }
+  else if (data.type === 'mapVote'){ duelOppVote = data.map; updateVoteStatus(); markOppVote(); tryResolveMapVote(); }
   else if (data.type === 'mapChosen'){
     if (netRole !== 'host'){               // the host already resolved this locally; the guest applies it here
       duelMap = data.map; duelRound = 0; duelScoreMe = 0; duelScoreOpp = 0; duelMatchOver = false;
@@ -4613,6 +4685,15 @@ function updateVoteStatus(){
   const s = document.getElementById('voteStatus'); if (!s) return;
   s.textContent = duelMyVote && duelOppVote ? 'Both voted - starting...' : duelMyVote ? 'Waiting for your opponent to vote...' : 'Pick a map to vote';
 }
+function markOppVote(){
+  document.querySelectorAll('#voteGrid .mapopt').forEach(x => {
+    const isOpp = x.dataset.m === duelOppVote;
+    x.classList.toggle('opp', isOpp);
+    let tag = x.querySelector('.oppTag');
+    if (isOpp && !tag){ tag = document.createElement('span'); tag.className = 'oppTag'; tag.textContent = (oppLoadout.name || 'OPPONENT') + ' PICKED'; x.appendChild(tag); }
+    else if (!isOpp && tag) tag.remove();
+  });
+}
 function tryResolveMapVote(){
   if (!duelMyVote || !duelOppVote || duelMapResolved) return;
   duelMapResolved = true;
@@ -4635,7 +4716,7 @@ function beginDuelRound(round, mySpawn, oppSpawn, isFirst){
     duelMode = true;                           // startBattle doesn't touch this - set again defensively
   } else {
     Object.assign(P, { x:mySpawn.x, y:mySpawn.y || 0, z:mySpawn.z, vy:0, yaw:mySpawn.yaw, pitch:0, onGround:true,
-      hp:DUEL_HP, dead:false, deathLeft:0, slide:0, slideCd:0, cWas:false, hurtT:0, hitT:0, hmT:0, ads:0, yawV:0, mvx:0, spinV:0, ex:0, ez:0, padCd:0, stam:1, tired:false });
+      hp:DUEL_HP, maxHp:DUEL_HP, dead:false, deathLeft:0, slide:0, slideCd:0, cWas:false, hurtT:0, hitT:0, hmT:0, ads:0, yawV:0, mvx:0, spinV:0, ex:0, ez:0, padCd:0, stam:1, tired:false });
     setHp();
     $('death').classList.add('hidden'); $('hurt').style.opacity = 0;
     won = false; winT = 0; $('win').classList.add('hidden');
@@ -4715,7 +4796,7 @@ document.querySelectorAll('.mode').forEach(btn => {
       $('mkRoom').onclick = () => {
         $('duelOut').innerHTML = '<p style="margin-top:12px">Connecting to the server...</p>';
         netOnCreated = code => { $('duelOut').innerHTML = `<p style="margin-top:12px">Room code (share with your friend):</p><div class="code">${code}</div><p style="font-size:12px;color:#9aa4b8;margin-top:8px">Waiting for them to join...</p>`; };
-        netOnReady = () => { duelMode = true; beginMapVote(); };
+        netOnReady = () => { duelMode = true; netSend(myLoadoutMsg()); beginMapVote(); };
         netConnect(() => netSend({ type:'create' }), msg => { $('duelOut').innerHTML = `<div class="err">${msg}</div>`; });
       };
       $('jnRoom').onclick = () => {
@@ -4725,7 +4806,7 @@ document.querySelectorAll('.mode').forEach(btn => {
           if (!code){ $('joinMsg').textContent = 'Type a room code first.'; return; }
           $('joinMsg').textContent = 'Connecting...';
           netOnJoinErr = reason => { $('joinMsg').textContent = reason; };
-          netOnReady = () => { duelMode = true; beginMapVote(); };
+          netOnReady = () => { duelMode = true; netSend(myLoadoutMsg()); beginMapVote(); };
           netConnect(() => netSend({ type:'join', code }), msg => { $('joinMsg').textContent = msg; });
         };
       };
