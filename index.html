@@ -421,7 +421,7 @@
 
     <div id="chat" class="collapsed">
       <button id="chatTab" class="btn small">&#128172; CHAT<span class="newdot off" id="chatDot"></span></button>
-      <div id="chatBox"><div class="chh"><b>CHAT</b><small>saved on this device</small></div><div id="chatLog"></div>
+      <div id="chatBox"><div class="chh"><b>CHAT</b><small id="chatScope">Public lobby chat</small></div><div id="chatLog"></div>
         <div class="chin"><input id="chatIn" maxlength="140" placeholder="Type a message, press Enter" autocomplete="off"><button class="btn small" id="chatSend">SEND</button></div></div>
     </div>
 
@@ -796,7 +796,17 @@ const Snd = (function(){
     if (!ok() || vol < .02) return; const t = ctx.currentTime;
     thump(sfx,t,150,55,.14,.5*vol); noiseHit(sfx,t,.16,.4*vol,'lowpass',3200,800); noiseHit(sfx,t,.03,.2*vol,'highpass',3000);
   }
-  function hurt(){ if (!ok()) return; const t = ctx.currentTime; thump(sfx,t,180,60,.18,.7); noiseHit(sfx,t,.12,.3,'lowpass',900); }
+  function hurt(pan){
+    if (!ok()) return; const t = ctx.currentTime;
+    let b = sfx;
+    // pan (-1 left .. 1 right, relative to where you're facing) routes the whole
+    // hit cue through a stereo panner so you can hear which side you got shot from
+    if (pan != null && ctx.createStereoPanner){
+      const p = ctx.createStereoPanner(); p.pan.value = Math.max(-1, Math.min(1, pan)); p.connect(sfx); b = p;
+    }
+    thump(b,t,180,60,.18,.7); noiseHit(b,t,.12,.3,'lowpass',900);
+    if (pan != null) tone(b,980,t,.05,{type:'sine',vol:.17,pluck:true,r:.1});   // a brief bright ping is much easier to localize by ear than the low thump alone
+  }
   function die(){ if (!ok()) return; const t = ctx.currentTime; thump(sfx,t,120,30,1.2,1); tone(sfx,220,t,.9,{type:'sawtooth',vol:.12,lp:500,r:.6}); tone(sfx,164,t+.15,1.1,{type:'sawtooth',vol:.1,lp:400,r:.8}); }
   function slide(){ if (!ok()) return; const t = ctx.currentTime; noiseHit(sfx,t,.7,.35,'bandpass',900,300); }
   function hitmark(kill){
@@ -3345,9 +3355,10 @@ function setHp(){
 }
 function damagePlayer(n, fromX, fromZ){
   if (P.dead) return;
-  P.hp -= n; setHp(); P.hurtT = .6; Snd.hurt();
+  P.hp -= n; setHp(); P.hurtT = .6;
   const dx = fromX - P.x, dz = fromZ - P.z, rx = Math.cos(P.yaw), rz = -Math.sin(P.yaw), fx = -Math.sin(P.yaw), fz = -Math.cos(P.yaw);
   const ang = Math.atan2(dx*rx + dz*rz, dx*fx + dz*fz);
+  Snd.hurt(Math.sin(ang));
   $('hitDir').style.transform = 'rotate(' + ang + 'rad)'; P.hitT = .8;
   if (P.hp <= 0) playerDie();
 }
@@ -3435,17 +3446,43 @@ function makeRemoteMesh(tone, outfitId, weaponId, gunSkinId){
   return g;
 }
 function makeNameTag(text){
-  const cnv = document.createElement('canvas'); cnv.width = 256; cnv.height = 64;
+  // bigger, bolder canvas + a thick glowing outline so the name reads clearly
+  // against any map background, at range, and over bright skies/snow
+  const cnv = document.createElement('canvas'); cnv.width = 384; cnv.height = 96;
   const c = cnv.getContext('2d');
-  c.font = '700 30px Fredoka, Arial, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
-  const tw = Math.min(238, c.measureText(text).width + 30);
-  c.fillStyle = 'rgba(10,13,20,.62)'; c.fillRect(128 - tw / 2, 13, tw, 38);
-  c.fillStyle = '#ffd24a'; c.fillText(text, 128, 33);
+  c.font = '900 42px Fredoka, Arial, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  const tw = Math.min(356, c.measureText(text).width + 44);
+  c.fillStyle = 'rgba(8,10,17,.82)'; c.fillRect(192 - tw / 2, 20, tw, 50);
+  c.lineWidth = 3; c.strokeStyle = 'rgba(255,210,74,.95)'; c.strokeRect(192 - tw / 2, 20, tw, 50);
+  c.lineWidth = 5; c.strokeStyle = 'rgba(0,0,0,.9)'; c.strokeText(text, 192, 46);
+  c.fillStyle = '#ffd24a'; c.fillText(text, 192, 46);
   const tex = new THREE.CanvasTexture(cnv); tex.needsUpdate = true;
   const mat = new THREE.SpriteMaterial({ map:tex, transparent:true });
   const spr = new THREE.Sprite(mat);
-  spr.scale.set(1.5, .375, 1); spr.position.y = 2.2;
-  return spr;
+  spr.scale.set(2.25, .5625, 1); spr.position.y = 2.65;
+
+  // health bar sits just under the name - a dark backing plate plus a colored
+  // fill sprite whose width/position we animate from the left edge each frame
+  const barW = 1.65, barH = .17;
+  const bg = new THREE.Sprite(new THREE.SpriteMaterial({ color:0x120d08, transparent:true, opacity:.88 }));
+  bg.scale.set(barW + .07, barH + .07, 1); bg.position.y = 2.22;
+  const fill = new THREE.Sprite(new THREE.SpriteMaterial({ color:0x3ddc5a }));
+  fill.scale.set(barW, barH, 1); fill.position.y = 2.22;
+  fill.userData.fullW = barW;
+
+  const grp = new THREE.Group();
+  grp.add(bg); grp.add(fill); grp.add(spr);
+  grp.userData.healthFill = fill;
+  return grp;
+}
+// pct is 0..1 of the opponent's max HP - keeps the bar under the nametag in sync with damage taken
+function setTagHealth(tag, pct){
+  if (!tag || !tag.userData || !tag.userData.healthFill) return;
+  pct = Math.max(0, Math.min(1, pct));
+  const fill = tag.userData.healthFill, w = fill.userData.fullW;
+  fill.scale.x = Math.max(.0001, w * pct);
+  fill.position.x = -w / 2 * (1 - pct);
+  fill.material.color.setHex(pct > .5 ? 0x3ddc5a : pct > .25 ? 0xffb020 : 0xff3b30);
 }
 function spawnBot(x, z, creepy, y){
   const pi = botPool.findIndex(q => q.creepy === !!creepy);
@@ -3477,6 +3514,7 @@ function spawnRemote(x, z, yaw, y){
   remote = { g, tag, x, y:y || 0, z, yaw, walkT:0, mv:false, hp:100, dead:false, sliding:false, slidePose:-1,
              netX:x, netY:y || 0, netZ:z, netYaw:yaw, netMoving:false, netHp:100, netDead:false, netSliding:false };
   remote.g.position.set(x, remote.y, z); remote.g.rotation.set(0, yaw + Math.PI, 0); remote.g.visible = true;
+  setTagHealth(tag, 1);
   if (!remote.g.parent) scene.add(remote.g);
 }
 // the opponent picked a different gun (or we learn their look late) - rebuild their avatar in place
@@ -3489,6 +3527,7 @@ function rebuildRemoteMesh(){
   scene.remove(oldG);
   scene.add(g);
   remote.g = g; remote.tag = tag; remote.slidePose = -1; remote.g.userData.sw = 0;
+  setTagHealth(tag, (remote.hp == null ? DUEL_HP : remote.hp) / DUEL_HP);   // carry the current HP over onto the freshly rebuilt bar
 }
 function despawnRemote(){
   if (remote){ remote.g.visible = false; if (remote.g.parent) scene.remove(remote.g); remote = null; }
@@ -3502,7 +3541,9 @@ function updateRemoteVisual(dt){
   remote.x += (remote.netX - remote.x) * k; remote.y += (remote.netY - remote.y) * k; remote.z += (remote.netZ - remote.z) * k;
   let dy = remote.netYaw - remote.yaw; while (dy > Math.PI) dy -= Math.PI*2; while (dy < -Math.PI) dy += Math.PI*2;
   remote.yaw += dy * k;
-  remote.mv = remote.netMoving; remote.hp = remote.netHp; remote.dead = remote.netDead; remote.sliding = remote.netSliding;
+  remote.mv = remote.netMoving;
+  if (remote.hp !== remote.netHp){ remote.hp = remote.netHp; setTagHealth(remote.tag, remote.hp / DUEL_HP); }
+  remote.dead = remote.netDead; remote.sliding = remote.netSliding;
   const bs = remote.g.userData.sol;
   if (remote.sliding && !remote.dead){
     if (remote.slidePose !== 1){ remote.slidePose = 1; solLeg(bs, 'R', 1.05, -.25); solLeg(bs, 'L', -.35, -.95); for (const kk of bs.legsI) bs.bones[kk].quaternion.copy(bs.lq[kk]); }
@@ -3856,7 +3897,10 @@ for (let i = 0; i < 5; i++){ const e = document.createElement('div'); e.classNam
 const footSel = [];
 function updateFoot(){
   footSel.length = 0;
-  if (!P.dead) for (const b of bots){
+  // the radar used to only scan the singleplayer `bots` array, so it stayed empty
+  // the whole match in duels - fold the network-driven opponent into the same scan
+  const sources = duelMode && remote ? [remote] : bots;
+  if (!P.dead) for (const b of sources){
     if (b.dead || !b.mv) continue;
     const dx = b.x - P.x, dz = b.z - P.z, d2 = dx*dx + dz*dz;
     if (d2 > 144) continue;
@@ -3913,7 +3957,7 @@ function playerMove(dt, t){
     const sp = 3.5 + 8.5 * Math.max(0, P.slide / 1.4);
     vx = P.sdx * sp; vz = P.sdz * sp; P.H = 1.0;
   } else {
-    const sm = (1 - .4 * P.ads) * (loadout.weapon === 'rpg' ? .5 : 1); vx = mx * (run ? 10.5 : 6.6) * sm; vz = mz * (run ? 10.5 : 6.6) * sm;
+    const sm = (1 - .4 * P.ads) * (loadout.weapon === 'rpg' ? .5 : 1); vx = mx * (run ? 8.4 : 5.28) * sm; vz = mz * (run ? 8.4 : 5.28) * sm;   // walk/run both 20% slower
     if (P.H < 1.75 && !blocked(P.x, P.y, P.z, P.R, 1.75)) P.H = 1.75;       // stand up when there is room
     else if (P.H < 1.75) { vx *= .5; vz *= .5; }
   }
@@ -4642,6 +4686,7 @@ function netHandle(data){
     }
   }
   else if (data.type === 'roundSpawns'){ applyRoundSpawns(data, false); }
+  else if (data.type === 'chat'){ chatAdd(data.name || (duelMode ? 'Opponent' : 'Player'), String(data.text || '').slice(0, 140)); }
 }
 function showToast(msg){
   const old = document.getElementById('toast'); if (old) old.remove();
@@ -5282,9 +5327,17 @@ const CHAT_TIPS = ['Keep moving! Bots almost never hit you while you run or slid
 function chatAdd(u, t, bot, sys){
   chatLog.push({ u, t, bot:!!bot, sys:!!sys }); if (chatLog.length > 60) chatLog.shift();
   store.set(CHAT_KEY, chatLog); chatDraw();
-  if (bot && $('chat').classList.contains('collapsed')) $('chatDot').classList.remove('off');
+  if ($('chat').classList.contains('collapsed')) $('chatDot').classList.remove('off');
+}
+// the lobby/menu chat is public (anyone online who isn't currently in a duel sees it);
+// the moment you're matched into a duel the same panel becomes private between just
+// the two of you - the relay server decides which based on whether you're in a duel room
+function updateChatScope(){
+  const el = document.getElementById('chatScope');
+  if (el) el.textContent = duelMode ? 'Private — just you and your opponent' : 'Public lobby chat';
 }
 function chatDraw(){
+  updateChatScope();
   const el = $('chatLog'); el.innerHTML = '';
   chatLog.forEach(m => {
     const d = document.createElement('div'); d.className = 'cm' + (m.bot ? ' bot' : '') + (m.sys ? ' sys' : '');
@@ -5295,7 +5348,7 @@ function chatDraw(){
 }
 function botReply(txt){
   const q = txt.toLowerCase(), me = acct ? acct.name : 'friend';
-  if (/^\/help|help/.test(q)) return 'Try: hi, tip, coins, maps, pads, rpg, codes, wheel. Real player chat arrives with Duels and Public servers.';
+  if (/^\/help|help/.test(q)) return 'Try: hi, tip, coins, maps, pads, rpg, codes, wheel. Other online players see your chat too - public in the lobby, private once you’re in a duel.';
   if (/\b(hi|hello|hey|yo|sup)\b/.test(q)) return 'Hey ' + me + '! Ready to defend? Type "tip" for a tip.';
   if (/tip/.test(q)) return CHAT_TIPS[Math.random() * CHAT_TIPS.length | 0];
   if (/coin|money|decoin/.test(q)) return acct ? 'You have ' + acct.coins + ' Decoins. Bots pay 1 each, quests and the wheels pay more.' : 'Decoins come from bots, quests and the wheels.';
@@ -5312,11 +5365,15 @@ function chatSend(){
   const inp = $('chatIn'), txt = inp.value.trim().slice(0, 140);
   if (!txt || Date.now() - chatLast < 700) return;
   chatLast = Date.now(); inp.value = '';
-  chatAdd(acct ? acct.name : 'Guest', txt);
+  const myName = acct ? acct.name : 'Guest';
+  chatAdd(myName, txt);
+  // send it to the relay server - public to everyone in the lobby, or just your
+  // opponent if you're in a duel (the server itself decides which, from your room state)
+  netConnect(() => netSend({ type:'chat', name:myName, text:txt }), () => {});
   setTimeout(() => chatAdd(BOT_NAME, botReply(txt), true), 600 + Math.random() * 500);
 }
-if (!chatLog.length) chatLog.push({ u:BOT_NAME, t:'Welcome to DEFENCE! Type "help" to see what I can do. Chat is saved on this device for now.', bot:true });
-$('chatTab').onclick = () => { const c = $('chat'); c.classList.toggle('collapsed'); if (!c.classList.contains('collapsed')){ $('chatDot').classList.add('off'); chatDraw(); $('chatIn').focus(); } };
+if (!chatLog.length) chatLog.push({ u:BOT_NAME, t:'Welcome to DEFENCE! Chat here is public to everyone online, and goes private just between you and your opponent during a duel.', bot:true });
+$('chatTab').onclick = () => { const c = $('chat'); c.classList.toggle('collapsed'); if (!c.classList.contains('collapsed')){ $('chatDot').classList.add('off'); chatDraw(); $('chatIn').focus(); netConnect(() => {}, () => {}); } };
 $('chatSend').onclick = chatSend;
 ['keydown', 'keyup', 'keypress'].forEach(ev => $('chatIn').addEventListener(ev, e => {
   e.stopPropagation();
