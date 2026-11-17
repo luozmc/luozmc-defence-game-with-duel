@@ -4241,9 +4241,13 @@ document.addEventListener('mousemove', e => {
   P.pitch  = Math.max(-1.45, Math.min(1.45, P.pitch - dy * k));
 });
 let lockAlt = false;
-function tryLock(){ try{ const el = lockAlt ? document.documentElement : $('stage'), r = el.requestPointerLock(); if (r && r.catch) r.catch(() => {}); }catch(e){} }
+// the weapon-select card picker needs a real, visible cursor - while it's open, nothing
+// should grab the pointer, or clicks on the gun cards get eaten by the lock request instead
+function wepSelectOpen(){ return !!document.getElementById('wepSelect'); }
+function tryLock(){ if (wepSelectOpen()) return; try{ const el = lockAlt ? document.documentElement : $('stage'), r = el.requestPointerLock(); if (r && r.catch) r.catch(() => {}); }catch(e){} }
 let lockErr = false;
-document.addEventListener('mousedown', e => { if (mode === 'battle' && previewT > 0 && !duelMode){ endPreview(); return; }
+document.addEventListener('mousedown', e => { if (wepSelectOpen()) return;
+  if (mode === 'battle' && previewT > 0 && !duelMode){ endPreview(); return; }
   if (mode === 'battle' && drop){ if (e.button === 0) dropAct(); return; }
   if (mode === 'battle' && !locked() && !P.dead && $('pause').classList.contains('hidden')) tryLock();
   if (mode === 'battle' && e.button === 0 && canPlay()) firing = true; if (mode === 'battle' && e.button === 2) aiming = true; });
@@ -4253,7 +4257,7 @@ window.addEventListener('keydown', e => { if (mode === 'battle' && previewT > 0 
 window.addEventListener('keydown', e => { if (mode === 'battle' && e.key.toLowerCase() === 'r' && canPlay()) startReload(); });
 // any key press may also (re)grab the mouse, so you are not stuck without mouse lock
 let lockTry = 0;
-window.addEventListener('keydown', e => { if (mode === 'battle' && !locked() && !P.dead && $('pause').classList.contains('hidden') && $('modal').classList.contains('hidden') && performance.now() - lockTry > 1400){ lockTry = performance.now(); tryLock(); } });
+window.addEventListener('keydown', e => { if (mode === 'battle' && !locked() && !P.dead && $('pause').classList.contains('hidden') && $('modal').classList.contains('hidden') && !wepSelectOpen() && performance.now() - lockTry > 1400){ lockTry = performance.now(); tryLock(); } });
 window.addEventListener('keydown', e => {
   if (mode === 'battle' && noLock && !P.dead && e.key === 'Escape' && $('modal').classList.contains('hidden')){ $('pause').classList.toggle('hidden'); firing = false; }
 });
@@ -4319,7 +4323,13 @@ function showWeaponSelect(onDone){
   function finish(id){
     if (resolved) return; resolved = true;
     clearInterval(iv); el.remove();
-    if (id && id !== loadout.weapon){ loadout.weapon = id; saveAcct(); }
+    if (id && id !== loadout.weapon){
+      loadout.weapon = id; saveAcct();
+      // the pick must actually change what's in your hands, not just the saved loadout -
+      // rebuild the viewmodel and reset ammo/reload state so the gun you see matches the gun that fires
+      ammo = AMMO[loadout.weapon] ? AMMO[loadout.weapon].mag : 0; reloadT = 0;
+      buildViewmodel(); updateAmmo();
+    }
     if (duelMode) netSend(myLoadoutMsg());   // let the opponent know which gun we actually picked
     onDone();
   }
@@ -4369,12 +4379,15 @@ function startBattle(mapName, opts){
   $('pause').classList.add('hidden');
   noLock = false;
   // pick a weapon before the pointer locks in - clicking a gun card needs a real,
-  // visible cursor, so the lock request waits until the 10s window is done
-  showWeaponSelect(() => {
+  // visible cursor, so the lock request waits until the 10s window is done.
+  // Singleplayer keeps whatever gun is already equipped and skips this screen entirely;
+  // only duels (where the opponent needs to see your pick) show it.
+  const afterWeaponPick = () => {
     $('stage').style.cursor = 'none';
     try{ $('stage').requestPointerLock(); }catch(e){}
     setTimeout(() => { if (mode === 'battle' && !P.dead && !locked()){ noLock = true; $('pause').classList.add('hidden'); } }, 700);
-  });
+  };
+  if (duelMode) showWeaponSelect(afterWeaponPick); else afterWeaponPick();
 }
 function endBattle(){
   lockHint(false);
@@ -5071,7 +5084,7 @@ function applyWheel(o){
     const f = FINISHES.find(x => x.id === o.skin), free = WEAPONS.filter(w => !ownsFinish(w.id, f.id));
     if (free.length){ const w = free[Math.random() * free.length | 0]; acct.owned.finishes.push(w.id + ':' + f.id); msg = 'You won the <b>' + f.n + ' ' + w.n + '</b> skin! Find it in your weapon skins.'; res = { f, w };
       if (f.id === 'derapture' && !acct.owned.finishes.includes('chute:derapture')){ acct.owned.finishes.push('chute:derapture'); msg += ' Bonus: the <b>Derapture parachute</b> too!'; } }
-    else { const r = Math.round((f.price || 1000) / 2); acct.coins += r; msg = 'You already own every ' + f.n + ' skin, so you get <b>' + r + ' Decoins</b> instead.'; res = { coins:r, dupe:true }; }
+    else { const r = 10; acct.coins += r; msg = 'You already own every ' + f.n + ' skin, so you get <b>' + r + ' Decoins</b> instead.'; res = { coins:r, dupe:true }; }
   }
   saveAcct(); res.msg = msg; return res;
 }
