@@ -341,12 +341,13 @@
   .newdot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#ff3b3b;box-shadow:0 0 8px #ff3b3b;margin-left:6px;vertical-align:middle;animation:tutpulse 1.4s infinite}
   .newdot.off{display:none}
   #chat{position:absolute;left:290px;bottom:74px;pointer-events:auto;z-index:4;display:flex;flex-direction:column;align-items:flex-start;gap:8px}
-  #chatBox{width:310px;height:270px;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px 10px;backdrop-filter:blur(6px)}
-  #chatBox .chh{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;font-weight:800;letter-spacing:.14em}
-  #chatBox .chh small{font-size:10px;color:var(--muted);letter-spacing:.03em;font-weight:500}
-  #chatLog{flex:1;overflow-y:auto;font-size:13px;margin:6px 0;display:flex;flex-direction:column;gap:3px;word-break:break-word}
-  #chatLog .cm b{color:#ffb347;margin-right:5px} #chatLog .cm.bot b{color:#6fd0ff} #chatLog .cm.sys{color:var(--muted);font-size:11px}
-  #chatBox .chin{display:flex;gap:6px} #chatBox input{flex:1;min-width:0;background:#0f1420;border:1px solid var(--line);color:#fff;border-radius:8px;padding:7px 9px;font-size:13px}
+  #chatBox{width:230px;height:190px;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:7px 9px;backdrop-filter:blur(6px)}
+  #chatBox .chh{display:flex;justify-content:space-between;align-items:baseline;font-size:11px;font-weight:800;letter-spacing:.12em;cursor:move;user-select:none;padding:2px 2px 5px;margin:-2px -2px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+  #chatBox .chh:active{cursor:grabbing}
+  #chatBox .chh small{font-size:9px;color:var(--muted);letter-spacing:.03em;font-weight:500}
+  #chatLog{flex:1;overflow-y:auto;font-size:12px;margin:6px 0;display:flex;flex-direction:column;gap:3px;word-break:break-word}
+  #chatLog .cm b{color:#ffb347;margin-right:5px} #chatLog .cm.bot b{color:#6fd0ff} #chatLog .cm.sys{color:var(--muted);font-size:10px}
+  #chatBox .chin{display:flex;gap:6px} #chatBox input{flex:1;min-width:0;background:#0f1420;border:1px solid var(--line);color:#fff;border-radius:8px;padding:6px 8px;font-size:12px}
   .updv{margin:0 0 14px} .updv h3{margin:0 0 4px;font-size:17px;color:#ffd24a;letter-spacing:.05em} .updv small{color:var(--muted);font-weight:400;margin-left:6px;font-size:12px}
   .updv ul{margin:4px 0 0;padding-left:20px;font-size:14px;line-height:1.55} .vtag{display:inline-block;background:#ff6a2b;color:#fff;font-size:10px;font-weight:800;padding:2px 7px;border-radius:99px;letter-spacing:.1em;vertical-align:middle;margin-left:6px}
   #updBody{max-height:62vh;overflow-y:auto;padding-right:6px}
@@ -5536,14 +5537,15 @@ const TUT = [
     <li>You have <b>100 HP</b>. If you die, wait <b>10 seconds</b>, then you return to the lobby.</li>
     <li>Win a round and you are teleported back to the lobby. Every bot you eliminate gives <b>1 Decoin</b>.</li>
     <li>In the lobby: ${kc('W')}${kc('A')}${kc('S')}${kc('D')} walk your character, ${kc('Q')}${kc('E')} spin, drag the mouse to turn the camera.</li>
-    <li><b>Duels</b> and <b>Public</b> need servers, which come later.</li></ul>`,
+    <li><b>Duels</b> is a 1v1 best-of-5 against a friend - create a room and send them the code, or join theirs. <b>Public</b> finds you a server to play on.</li>
+    <li>Your account now works on <b>any device</b> - sign in with the same username and password anywhere.</li></ul>`,
   () => `<h3>Controls in a match</h3><div class="ctl">
     <div>${kc('W')}${kc('A')}${kc('S')}${kc('D')}</div><div>Move</div>
     <div>Mouse</div><div>Look around</div>
     <div>Left click</div><div>Shoot</div>
     <div>Right click</div><div>Aim (zoom in, steadier shots)</div>
     <div>${kc('R')}</div><div>Reload (it also reloads when empty)</div>
-    <div>${kc('Space')}</div><div>Jump</div>
+    <div>${kc('Space')}</div><div>Jump / open parachute</div>
     <div>${kc('Shift')}</div><div>Run</div>
     <div>${kc('C')}</div><div>Slide (3 second cooldown)</div>
     <div>${kc('Q')}${kc('E')} or ${kc('&larr;')}${kc('&rarr;')}</div><div>Turn around</div>
@@ -5552,14 +5554,21 @@ const TUT = [
     <li><b>Headshots</b> hurt the most. The damage number turns <b style="color:#ffd24a">yellow</b>.</li>
     <li><b>Keep moving.</b> Bots almost never hit you while you walk, run or slide.</li>
     <li><b>Footprint icons</b> appear around your crosshair when a bot is close. They point to where it is.</li>
-    <li>Watch your ammo at the bottom right. The RPG has only 2 shots, a slow reload and a big blast.</li>
+    <li>Watch your ammo at the bottom right. The RPG has only 2 shots, a slow reload and a big blast - watch for sparks and brass flying as you reload.</li>
     <li>Use walls, crates and trees as cover. Bots cannot shoot through them.</li>
     <li><b>Jump pads:</b> a <b style="color:#7dffb8">green pad</b> launches you straight up, as high as a building. An <b style="color:#ffb347">orange pad</b> flings you far across the map in the arrow's direction.</li>
     <li>Open <b>Settings</b> (the gear) to change field of view, sensitivity and volume.</li></ul>`,
+  () => `<h3>Duels</h3><ul class="tut">
+    <li>A match is <b>best of 5 rounds</b>, 500 HP each round, first to 3 wins.</li>
+    <li>Round 1 opens with a <b>"VS" flash</b> showing both players, then you ride a plane over the map - press ${kc('Space')} to jump, and again to open your parachute.</li>
+    <li>You can always see your opponent's <b>nametag through walls</b>, so you know roughly where they are.</li>
+    <li>The <b>chat</b> panel on the left is public in the lobby, and goes private between just you two the moment a duel starts. Drag it anywhere by its header.</li></ul>`,
   () => `<h3>Decoins and rewards</h3><ul class="tut">
     <li>Spend <b>Decoins</b> on skins and gun skins in the panel at the side of the menu.</li>
     <li>The <b>Daily Wheel</b> gives one free spin a day. The <b>Premium Wheel</b> costs 10 Decoins per spin.</li>
     <li><b>Daily Quests</b> (top left) pay Decoins. Press <b>CLAIM</b> when a bar is full.</li>
+    <li>The <b>YOUTUBE</b> button pays 20 Decoins for checking out the channel, and 30 more for subscribing.</li>
+    <li>Check the <b>Events</b> tile in the menu for codes and announcements - it's updated often.</li>
     <li>The red and black <b style="color:#ff6a6a">Derapture</b> skin only comes from the wheels.</li>
     <li>Press <b>HOW TO PLAY</b> any time to see this again. Good luck!</li></ul>`
 ];
@@ -5577,9 +5586,16 @@ $('redeemBtn').onclick = openRedeem;
 $('packBtn').onclick = openBackpack;
 
 /* ---------- updates panel ---------- */
-const APP_VER = '3.31';
+const APP_VER = '3.38';
 const UPDATES = [
-  { v:'3.31', d:'Latest', l:['Bots are now 30% less accurate (they hit you 30% less often).'] },
+  { v:'3.38', d:'Latest', l:['The chat panel is smaller now, and you can drag it anywhere on screen by its header - it remembers where you put it.'] },
+  { v:'3.37', d:'', l:['Fixed a bug where a frozen, undamageable copy of your duel opponent could linger in the lobby and map preview after a match ended.', 'You can now see your duel opponent’s nametag through walls.', 'Chat no longer has a bot, and is always open - no button needed. You’ll see public lobby messages right away, and it still goes private just between you two during a duel.', 'Duels now open with a flashing "VS" screen showing both players’ names, outfit colour and weapon.'] },
+  { v:'3.36', d:'', l:['Fixed the How to Play button overlapping the top-right buttons, and the Singleplayer button overlapping Daily Quests.', 'Reload animations are more satisfying: ejected brass, dropped magazines and the bolt racking all kick up small particle effects, and there’s a live progress bar while reloading.'] },
+  { v:'3.35', d:'', l:['Events is now its own tile in the main menu (like the wheels), opening a notice-board styled panel instead of a plain popup.'] },
+  { v:'3.34', d:'', l:['Parachute landings are now visible to your opponent in duels, not just to you.', 'Accounts now work across devices - sign in with the same username and password anywhere.', 'New YouTube button in the top bar: first click gives 20 Decoins, subscribing gives 30.', 'New Events board for codes and announcements, updated without needing a new version of the game.'] },
+  { v:'3.33', d:'', l:['Fixed the RPG dealing no damage in duels, and your opponent not being able to see it fire.'] },
+  { v:'3.32', d:'', l:['Added lobby chat - public in the menu, private once you’re in a duel.', 'Bigger, clearer nametags with a health bar underneath.', 'A directional hit sound that tells you roughly where you got shot from.', 'Fixed footsteps not showing up in duels.', 'Walking and running are both 20% slower.'] },
+  { v:'3.31', d:'', l:['Bots are now 30% less accurate (they hit you 30% less often).'] },
   { v:'3.30', d:'', l:['Parachute skins now have a spinning 3D preview (tap a locked one) and the redeem-code reveal shows the parachute too.'] },
   { v:'3.29', d:'', l:['Parachute skins! Every gun skin now has a matching parachute with the same name and price (Midnight, Dune Tan, Crimson, Arctic, Neon, Gold, Waves, Pixelated, LUOZ, Derapture). Pick them under Weapon in the lobby or in the Backpack.', 'Pixelated and LUOZ parachutes come from redeem codes. The Derapture parachute comes free with a Derapture win from the wheels.'] },
   { v:'3.28', d:'', l:['Battle plane! After the map preview you ride a plane over the map. Press SPACE (or click) to jump out whenever you like. If you wait, the plane drops you 5 seconds before its route ends.', 'In free-fall press SPACE to open your parachute (hold W to dive faster). It also opens by itself near the ground, so you always land safely. Steer with W A S D.', 'Parachute skins can be added later.'] },
@@ -5727,6 +5743,47 @@ $('chatSend').onclick = chatSend;
   e.stopPropagation();
   if (ev === 'keydown'){ if (e.key === 'Enter') chatSend(); else if (e.key === 'Escape') $('chatIn').blur(); }
 }));
+
+// drag the chat panel around by its header, and remember where you left it
+(function makeChatDraggable(){
+  const el = $('chat'), handle = el.querySelector('.chh');
+  if (!handle) return;
+  const POS_KEY = 'defence_chatpos_v1';
+  const saved = store.get(POS_KEY, null);
+  if (saved && typeof saved.left === 'number' && typeof saved.top === 'number'){
+    el.style.left = saved.left + 'px'; el.style.top = saved.top + 'px'; el.style.bottom = 'auto';
+  }
+  let dragging = false, sx = 0, sy = 0, sl = 0, st = 0;
+  function clampIntoView(){
+    const r = el.getBoundingClientRect();
+    let left = parseFloat(el.style.left), top = parseFloat(el.style.top);
+    left = Math.max(6, Math.min(window.innerWidth - r.width - 6, left));
+    top = Math.max(6, Math.min(window.innerHeight - r.height - 6, top));
+    el.style.left = left + 'px'; el.style.top = top + 'px';
+  }
+  handle.addEventListener('pointerdown', e => {
+    if (e.button != null && e.button !== 0) return;
+    const r = el.getBoundingClientRect();
+    el.style.left = r.left + 'px'; el.style.top = r.top + 'px'; el.style.bottom = 'auto';
+    dragging = true; sx = e.clientX; sy = e.clientY; sl = r.left; st = r.top;
+    try{ handle.setPointerCapture(e.pointerId); }catch(err){}
+    e.preventDefault();
+  });
+  handle.addEventListener('pointermove', e => {
+    if (!dragging) return;
+    el.style.left = (sl + e.clientX - sx) + 'px';
+    el.style.top = (st + e.clientY - sy) + 'px';
+  });
+  function stopDrag(){
+    if (!dragging) return;
+    dragging = false;
+    clampIntoView();
+    store.set(POS_KEY, { left: parseFloat(el.style.left), top: parseFloat(el.style.top) });
+  }
+  handle.addEventListener('pointerup', stopDrag);
+  handle.addEventListener('pointercancel', stopDrag);
+  window.addEventListener('resize', () => { if (el.style.left) clampIntoView(); });
+})();
 
 /* ---------- settings ---------- */
 const SET = Object.assign({ vol:.8, sens:1, fov:70, shadows:true }, store.get('defence_settings', {}));
