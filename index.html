@@ -340,6 +340,17 @@
   .mapopt.castle .pic{background:linear-gradient(90deg,#8a919b 0 12%,transparent 12% 88%,#8a919b 88%),linear-gradient(180deg,#6f8196 0%,#a9b6c3 46%,#cfd3d8 47%,#9aa0a8 70%,#5f8a3e 71%,#4f7a34 100%)}
   .newdot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#ff3b3b;box-shadow:0 0 8px #ff3b3b;margin-left:6px;vertical-align:middle;animation:tutpulse 1.4s infinite}
   .newdot.off{display:none}
+  @keyframes greenpulse{0%,100%{box-shadow:0 0 0 0 rgba(61,220,113,.6)}50%{box-shadow:0 0 0 7px rgba(61,220,113,0)}}
+  .onlinePill{display:flex;align-items:center;gap:7px;background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:5px 12px;cursor:pointer;font-weight:800;font-size:13px;color:#cdeedd;font-family:inherit;margin-left:4px}
+  .onlinePill:hover{background:rgba(0,0,0,.42)}
+  .onlineDot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#3ddc71;box-shadow:0 0 8px #3ddc71;animation:greenpulse 1.6s infinite}
+  .onlineList{display:flex;flex-direction:column;gap:8px;margin-top:14px;max-height:320px;overflow-y:auto}
+  .onlineRow{display:flex;justify-content:space-between;align-items:center;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:8px 10px 8px 14px;font-size:14px;font-weight:600}
+  .onlineRow button:disabled{opacity:.5;cursor:default}
+  #duelInvitePop{position:fixed;left:50%;bottom:0;transform:translate(-50%,130%);transition:transform .35s ease;z-index:9999;pointer-events:none}
+  #duelInvitePop.show{transform:translate(-50%,-22px);pointer-events:auto}
+  .dipBody{background:rgba(16,20,29,.96);border:1px solid #2f394c;border-radius:14px 14px 0 0;padding:16px 24px;box-shadow:0 -10px 32px rgba(0,0,0,.5);color:#e8ecf3;font-size:14px;text-align:center;min-width:260px}
+  .dipRow{display:flex;gap:10px;margin-top:12px;justify-content:center}
   #chat{position:absolute;left:290px;bottom:74px;pointer-events:auto;z-index:4;display:flex;flex-direction:column;align-items:flex-start;gap:8px}
   #chatBox{width:230px;height:190px;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:7px 9px;backdrop-filter:blur(6px)}
   #chatBox .chh{display:flex;justify-content:space-between;align-items:baseline;font-size:11px;font-weight:800;letter-spacing:.12em;cursor:move;user-select:none;padding:2px 2px 5px;margin:-2px -2px 0;border-bottom:1px solid rgba(255,255,255,.06)}
@@ -441,7 +452,7 @@
 <div id="menu" class="screen hidden">
   <div id="ui">
     <div class="topbar">
-      <div class="logo small"><svg id="logoSmall" viewBox="0 0 100 100"></svg><div class="word">DEFENCE</div><div class="copy">&copy; YouTube @luozmc</div></div>
+      <div class="logo small"><svg id="logoSmall" viewBox="0 0 100 100"></svg><div class="word">DEFENCE</div><button id="onlineBtn" class="onlinePill" title="See who's online"><span class="onlineDot"></span><b id="onlineCount">0</b></button><div class="copy">&copy; YouTube @luozmc</div></div>
       <div class="right-top">
         <button id="updBtn" class="btn small alt">UPDATES<span class="newdot" id="updDot"></span></button>
         <button id="ytBtn" class="btn small alt">&#9658; YOUTUBE<span class="newdot" id="ytDot"></span></button>
@@ -4904,13 +4915,16 @@ function serverSaveDebounced(name, hash, acctObj){
 
 const NET = { ws:null, connected:false, roomCode:null };
 let netOnCreated = null, netOnJoinErr = null, netOnReady = null;
+let ONLINE = { count:0, players:[] }, onlineModalOpen = false, currentInviteId = null;
+function myDisplayName(){ return (acct && acct.name) || 'Guest'; }
+function escHtml(s){ return String(s == null ? '' : s).replace(/[&<>]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[c])); }
 
 function netConnect(onOpen, onError){
   if (NET.ws && NET.ws.readyState === WebSocket.OPEN){ onOpen(); return; }
   if (/REPLACE-WITH-YOUR-RENDER-URL/.test(SERVER_URL)){ onError('The game server has not been set up yet.'); return; }
   try{ NET.ws = new WebSocket(SERVER_URL); } catch(e){ onError('Could not reach the server.'); return; }
   let opened = false;
-  NET.ws.onopen = () => { opened = true; NET.connected = true; onOpen(); };
+  NET.ws.onopen = () => { opened = true; NET.connected = true; netSend({ type:'identify', name: myDisplayName() }); onOpen(); };
   NET.ws.onerror = () => { if (!opened) onError('Could not reach the server.'); };
   NET.ws.onclose = () => { NET.connected = false; if (duelMode) duelPeerLeft('Lost connection to the server.'); };
   NET.ws.onmessage = ev => {
@@ -4922,7 +4936,29 @@ function netSend(obj){ if (NET.ws && NET.ws.readyState === WebSocket.OPEN) NET.w
 function netHandle(data){
   if (data.type === 'created'){ NET.roomCode = data.code; if (netOnCreated) netOnCreated(data.code); }
   else if (data.type === 'joinError'){ if (netOnJoinErr) netOnJoinErr(data.reason || 'Could not join that room.'); }
-  else if (data.type === 'ready'){ netRole = data.youAre; NET.roomCode = data.code; if (netOnReady) netOnReady(); }
+  else if (data.type === 'ready'){
+    netRole = data.youAre; NET.roomCode = data.code;
+    if (netOnReady) netOnReady();
+    else { removeDuelInvitePopup(); closeModal(); duelMode = true; netSend(myLoadoutMsg()); beginMapVote(); }  // matched via a direct duel invite, not the create/join modal
+  }
+  else if (data.type === 'online'){
+    ONLINE.count = data.count || 0; ONLINE.players = data.players || [];
+    const d = document.getElementById('onlineCount'); if (d) d.textContent = ONLINE.count;
+    if (onlineModalOpen && !$('modal').classList.contains('hidden')){
+      $('modalBox').innerHTML = '<button class="x" id="mx">&times;</button>' + renderOnlineList();
+      $('mx').onclick = closeModal; wireOnlineList();
+    }
+  }
+  else if (data.type === 'duelInviteSent'){ showToast('Duel request sent to ' + data.toName + '. Waiting for them to respond...'); }
+  else if (data.type === 'duelInviteFailed'){ showToast(data.reason || 'Could not send that duel request.'); }
+  else if (data.type === 'duelInviteDeclined'){ showToast((data.name || 'They') + ' declined your duel request.'); }
+  else if (data.type === 'duelInvite'){
+    if (mode === 'battle'){ netSend({ type:'duelInviteResponse', inviteId:data.inviteId, accept:false }); return; }  // already mid-match (bots or a duel) - decline automatically
+    showDuelInvitePopup(data.inviteId, data.fromName || 'Someone');
+  }
+  else if (data.type === 'duelInviteCancelled'){
+    if (data.inviteId && currentInviteId === data.inviteId){ removeDuelInvitePopup(); showToast('That duel request expired.'); }
+  }
   else if (data.type === 'state'){
     if (!remote) return;
     remote.netX = data.x; remote.netY = data.y; remote.netZ = data.z; remote.netYaw = data.yaw;
@@ -4953,6 +4989,49 @@ function showToast(msg){
   document.body.appendChild(t);
   setTimeout(() => { t.style.opacity = '0'; setTimeout(() => { if (t.parentNode) t.remove(); }, 400); }, 2800);
 }
+function showDuelInvitePopup(inviteId, fromName){
+  removeDuelInvitePopup();
+  currentInviteId = inviteId;
+  const pop = document.createElement('div'); pop.id = 'duelInvitePop';
+  pop.innerHTML = '<div class="dipBody"><b>' + escHtml(fromName) + '</b> wants to duel you!' +
+    '<div class="dipRow"><button class="btn small" id="dipAccept">ACCEPT</button><button class="btn small alt" id="dipDecline">DECLINE</button></div></div>';
+  document.body.appendChild(pop);
+  requestAnimationFrame(() => requestAnimationFrame(() => pop.classList.add('show')));
+  Snd.click();
+  document.getElementById('dipAccept').onclick = () => { netSend({ type:'duelInviteResponse', inviteId, accept:true }); removeDuelInvitePopup(); };
+  document.getElementById('dipDecline').onclick = () => { netSend({ type:'duelInviteResponse', inviteId, accept:false }); removeDuelInvitePopup(); };
+}
+function removeDuelInvitePopup(){
+  currentInviteId = null;
+  const pop = document.getElementById('duelInvitePop'); if (!pop) return;
+  pop.classList.remove('show');
+  setTimeout(() => { if (pop.parentNode) pop.remove(); }, 300);
+}
+function renderOnlineList(){
+  const mine = myDisplayName();
+  const others = ONLINE.players.filter(p => p.toLowerCase() !== mine.toLowerCase());
+  const rows = others.length
+    ? others.map(p => '<div class="onlineRow"><span>' + escHtml(p) + '</span><button class="btn small" data-duel="' + escHtml(p) + '">DUEL</button></div>').join('')
+    : '<p style="color:#9aa4b8;font-size:13px;margin-top:14px">No one else is online right now. Check back later!</p>';
+  return '<h2>Who’s online (' + ONLINE.count + ')</h2><div class="onlineList">' + rows + '</div>';
+}
+function wireOnlineList(){
+  const list = document.querySelector('.onlineList'); if (!list) return;
+  list.onclick = e => {
+    const b = e.target.closest('[data-duel]'); if (!b || b.disabled) return;
+    b.disabled = true; b.textContent = 'SENT';
+    netSend({ type:'duelInvite', toName: b.dataset.duel });
+  };
+}
+function openOnlinePlayers(){
+  onlineModalOpen = true;
+  netConnect(() => {
+    netSend({ type:'listPlayers' });
+    openModal(renderOnlineList(), () => { onlineModalOpen = false; });
+    wireOnlineList();
+  }, () => { onlineModalOpen = false; showToast('Could not reach the server.'); });
+}
+$('onlineBtn').onclick = openOnlinePlayers;
 function duelPeerLeft(msg){
   if (!duelMode) return;
   if (document.pointerLockElement) document.exitPointerLock();
@@ -5140,8 +5219,10 @@ document.querySelectorAll('.mode').forEach(btn => {
         <div class="row">
           <button class="btn" id="mkRoom">CREATE</button>
           <button class="btn alt" id="jnRoom">JOIN</button>
+          <button class="btn alt" id="dlPlayer">DUEL A PLAYER</button>
         </div>
         <div id="duelOut"></div>`, () => { if (!duelMode && NET.ws){ try{ NET.ws.close(); }catch(e){} NET.ws = null; NET.connected = false; netConnect(() => {}, () => {}); } });
+      $('dlPlayer').onclick = openOnlinePlayers;
       $('mkRoom').onclick = () => {
         $('duelOut').innerHTML = '<p style="margin-top:12px">Connecting to the server...</p>';
         netOnCreated = code => { $('duelOut').innerHTML = `<p style="margin-top:12px">Room code (share with your friend):</p><div class="code">${code}</div><p style="font-size:12px;color:#9aa4b8;margin-top:8px">Waiting for them to join...</p>`; };
