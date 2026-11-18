@@ -342,6 +342,23 @@
   #updBody{max-height:62vh;overflow-y:auto;padding-right:6px}
   .mapopt b{display:block;padding:8px 10px 2px;letter-spacing:.12em;font-size:13px}
   .mapopt small{display:block;padding:0 10px 9px;font-size:11px;color:var(--muted)}
+
+  /* ---------- events notice board ---------- */
+  .board{background:#8a6239;background-image:radial-gradient(rgba(0,0,0,.16) 1.4px,transparent 1.5px),radial-gradient(rgba(255,255,255,.06) 1.4px,transparent 1.5px);
+    background-size:9px 9px,9px 9px;background-position:0 0,4px 4px;border-radius:10px;padding:22px 18px 10px;
+    margin:4px -6px -6px;box-shadow:inset 0 0 30px rgba(0,0,0,.5),inset 0 0 0 10px #6b4a28;max-height:60vh;overflow-y:auto}
+  .board::-webkit-scrollbar{width:6px}.board::-webkit-scrollbar-thumb{background:#4a3016;border-radius:3px}
+  .notice{position:relative;background:#f8f0d8;color:#2a2117;border-radius:3px;padding:16px 16px 14px;margin:14px 6px 26px;
+    box-shadow:0 8px 16px rgba(0,0,0,.4);transform:rotate(-1.4deg)}
+  .notice:nth-child(even){transform:rotate(1.2deg)}
+  .notice::before{content:'';position:absolute;top:-11px;left:50%;margin-left:-8px;width:16px;height:16px;border-radius:50%;
+    background:radial-gradient(circle at 32% 30%,#ff8a7a,#b02e2e);box-shadow:0 3px 5px rgba(0,0,0,.55)}
+  .notice h3{margin:0 0 6px;font-size:16px;color:#241d12;letter-spacing:.02em;font-weight:800}
+  .notice h3 small{display:block;font-weight:500;color:#7a6b4e;font-size:11px;letter-spacing:.08em;text-transform:uppercase;margin-top:2px}
+  .notice p{margin:0 0 8px;font-size:13px;line-height:1.55;color:#3a3220}
+  .notice .codetag{display:inline-block;background:#1a2030;color:#ffd24a;font-weight:800;letter-spacing:.12em;
+    padding:5px 11px;border-radius:5px;border:1px dashed #ffd24a;font-size:13px}
+  .noboard{color:#f0e6cc;text-align:center;padding:30px 10px;font-size:13px}
 </style>
 </head>
 <body>
@@ -399,7 +416,6 @@
       <div class="logo small"><svg id="logoSmall" viewBox="0 0 100 100"></svg><div class="word">DEFENCE</div><div class="copy">&copy; YouTube @luozmc</div></div>
       <div class="right-top">
         <button id="updBtn" class="btn small alt">UPDATES<span class="newdot" id="updDot"></span></button>
-        <button id="evBtn" class="btn small alt">EVENTS<span class="newdot off" id="evDot"></span></button>
         <button id="ytBtn" class="btn small alt">&#9658; YOUTUBE<span class="newdot" id="ytDot"></span></button>
         <button id="packBtn" class="btn small alt">BACKPACK</button>
         <button id="redeemBtn" class="btn small">REDEEM CODE</button>
@@ -416,6 +432,7 @@
       <button class="mode" data-mode="duels"><h3>Duels</h3><p>Create or join a private server with friends.</p></button>
       <button class="mode" data-mode="wheel"><h3>Daily Wheel <span class="badge" id="wheelBadge">FREE</span></h3><p>Spin once a day for Decoins and rare skins.</p></button>
       <button class="mode" data-mode="wheel2"><h3>Premium Wheel</h3><p>10 Decoins per spin. Better skin odds.</p></button>
+      <button class="mode" data-mode="events"><h3>Events <span class="badge" id="evBadge" style="display:none">NEW</span></h3><p>Codes and announcements, posted here anytime.</p></button>
       <button class="mode" data-mode="public"><h3>Public</h3><p>Find a server for you in the public.</p></button>
     </div>
 
@@ -5023,6 +5040,7 @@ document.querySelectorAll('.mode').forEach(btn => {
     if (m === 'single') openSingleplayer();
     else if (m === 'wheel') openWheel();
     else if (m === 'wheel2') openWheel('paid');
+    else if (m === 'events') openEvents();
     else if (m === 'duels'){
       openModal(`<h2>Duels</h2>
         <p>Play a best-of-5 1v1 against a friend, 500 HP a round. Create a room and send them the code, or join theirs.</p>
@@ -5519,29 +5537,28 @@ async function loadEvents(){
   }catch(e){ return []; }
 }
 function updateEventsDot(){
-  const d = $('evDot'); if (!d) return;
-  if (!eventsCache || !eventsCache.length){ d.classList.add('off'); return; }
+  const b = $('evBadge'); if (!b) return;
+  if (!eventsCache || !eventsCache.length){ b.style.display = 'none'; return; }
   const seen = store.get(EVENTS_SEEN_KEY, []);
-  d.classList.toggle('off', !eventsCache.some(e => !seen.includes(e.id)));
+  b.style.display = eventsCache.some(e => !seen.includes(e.id)) ? '' : 'none';
 }
 async function openEvents(){
   if (eventsCache == null) eventsCache = await loadEvents();
   const seen = store.get(EVENTS_SEEN_KEY, []);
   store.set(EVENTS_SEEN_KEY, Array.from(new Set(seen.concat(eventsCache.map(e => e.id)))));
   updateEventsDot();
-  if (!eventsCache.length){
-    openModal('<h2>Events</h2><p style="color:#9aa4b8">Nothing posted right now - check back soon!</p>');
-  } else {
-    openModal('<h2>Events</h2><div id="evBody">' + eventsCache.slice().reverse().map(e =>
-      '<div class="updv"><h3>' + (e.title || 'Event') + '<small>' + (e.date || '') + '</small></h3>' +
-      (e.body ? '<p style="margin:6px 0 8px;color:#cfd6e3">' + e.body + '</p>' : '') +
-      (e.code ? '<p style="margin:0"><b style="color:#ffd24a">Code:</b> <code style="background:#1a2030;padding:3px 8px;border-radius:6px">' + e.code + '</code></p>' : '')
-      + '</div>'
-    ).join('') + '</div>');
-  }
-  $('modalBox').style.width = 'min(620px,94vw)';
+  const esc = s => String(s == null ? '' : s).replace(/[&<>]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[c]));
+  const body = !eventsCache.length
+    ? '<div class="noboard">The board is empty right now &ndash; check back soon!</div>'
+    : eventsCache.slice().reverse().map(e =>
+        '<div class="notice"><h3>' + esc(e.title || 'Event') + (e.date ? '<small>' + esc(e.date) + '</small>' : '') + '</h3>' +
+        (e.body ? '<p>' + esc(e.body) + '</p>' : '') +
+        (e.code ? '<span class="codetag">' + esc(e.code) + '</span>' : '')
+        + '</div>'
+      ).join('');
+  openModal('<h2>Events</h2><div class="board" id="evBody">' + body + '</div>');
+  $('modalBox').style.width = 'min(560px,94vw)';
 }
-$('evBtn').onclick = openEvents;
 loadEvents().then(list => { eventsCache = list; updateEventsDot(); });
 
 /* ---------- YouTube rewards ---------- */
