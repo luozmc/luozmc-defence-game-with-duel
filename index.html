@@ -86,7 +86,13 @@
   .user button{background:#2a3347;border:0;color:var(--text);padding:7px 14px;border-radius:20px;cursor:pointer;font-size:12px}
   .user button:hover{background:#36425c}
 
-  .modes{position:absolute;left:24px;bottom:74px;display:flex;flex-direction:column;gap:14px;width:250px}
+  /* quests + the mode list both live in this one column, stacked in normal
+     flow (not independently absolute-positioned) so they can never overlap
+     each other or anything else - the column just scrolls internally if a
+     screen is too short to fit everything at once. */
+  .leftstack{position:absolute;left:24px;top:78px;bottom:74px;width:262px;display:flex;flex-direction:column;gap:14px;overflow-y:auto;pointer-events:auto}
+  .leftstack::-webkit-scrollbar{width:6px}.leftstack::-webkit-scrollbar-thumb{background:#2f394c;border-radius:3px}
+  .modes{flex:none;display:flex;flex-direction:column;gap:14px;width:100%}
   .mode{position:relative;text-align:left;padding:18px 20px;background:var(--panel);border:1px solid var(--line);
     border-left:4px solid var(--accent);border-radius:10px;color:var(--text);cursor:pointer;backdrop-filter:blur(6px);
     transition:transform .15s,background .15s,border-color .15s}
@@ -178,7 +184,7 @@
   #sndBtn:hover{background:#2a3347}
 
   @media (max-width:900px){
-    .side{width:230px}.modes{width:190px}.mode p{display:none}
+    .side{width:230px}.leftstack{width:190px}.mode p{display:none}
   }
   .gear{width:46px;height:46px;border:0;background:none;cursor:pointer;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 2px 5px rgba(0,0,0,.6)) drop-shadow(0 0 7px rgba(80,160,255,.55));transition:transform .3s}
   .gear:hover{transform:rotate(60deg) scale(1.1)}
@@ -195,7 +201,9 @@
   .wptr{position:absolute;left:50%;top:-8px;margin-left:-11px;border:11px solid transparent;border-top:22px solid #fff;z-index:2;filter:drop-shadow(0 2px 3px #000)}
   .odds{font-size:11px;color:var(--muted);line-height:1.6;text-align:center;margin-top:10px}
   .ammo{font-size:26px;letter-spacing:.04em;margin-top:2px;text-align:right}
-  .ammo.low{color:#ff8a5a} .ammo.rl{font-size:16px;color:var(--accent2)}
+  .ammo.low{color:#ff8a5a} .ammo.rl{font-size:13px;letter-spacing:.14em;color:var(--accent2);font-weight:700}
+  .rlbar{width:92px;height:6px;background:#1b2231;border-radius:3px;overflow:hidden;margin:5px 0 0 auto;box-shadow:inset 0 0 0 1px rgba(255,255,255,.05)}
+  .rlbar b{display:block;height:100%;width:0;border-radius:3px;background:linear-gradient(90deg,var(--accent),var(--accent2));box-shadow:0 0 8px rgba(94,166,255,.6)}
   #hudWeapon>div:first-child{font-size:12px;color:var(--muted);text-align:right}
   #scope{position:fixed;inset:0;pointer-events:none;opacity:0;background:radial-gradient(circle at center,transparent 0,transparent 27vmin,#000 27.6vmin)}
   #scope::before,#scope::after{content:'';position:absolute;background:#000}
@@ -203,7 +211,10 @@
   #scope::after{top:0;bottom:0;left:50%;width:3px;margin-left:-1.5px}
   @media (max-height:820px){.mode p{display:none}}
   #mapfade{position:fixed;inset:0;background:#000;opacity:0;transition:opacity .7s;pointer-events:none;z-index:1}
-  #tutBtn{position:absolute;left:50%;top:14px;transform:translateX(-50%);pointer-events:auto;cursor:pointer;display:flex;align-items:center;gap:10px;
+  /* sits centered but BELOW the topbar row, so it never sits on top of the
+     update/youtube/backpack/etc buttons on the right no matter how many of
+     those there are */
+  #tutBtn{position:absolute;left:50%;top:70px;transform:translateX(-50%);pointer-events:auto;cursor:pointer;display:flex;align-items:center;gap:10px;
     padding:11px 26px;border-radius:999px;border:2px solid #ffd24a;background:linear-gradient(180deg,#2d8cff,#1356c4);color:#fff;font-weight:900;letter-spacing:.14em;font-size:15px;
     animation:tutpulse 1.6s ease-in-out infinite;z-index:3}
   #tutBtn i{display:inline-flex;width:26px;height:26px;border-radius:50%;background:#ffd24a;color:#1a2233;align-items:center;justify-content:center;font-style:normal;font-size:17px}
@@ -218,7 +229,7 @@
   .qbanner b{display:block;font-size:22px;font-weight:900;letter-spacing:.18em;color:#ffd24a;text-shadow:0 0 12px rgba(255,200,60,.7)}
   .qbanner span{font-size:13px;color:#e6ecf8}
   @keyframes qbin{0%{opacity:0;transform:translate(-50%,-34px) scale(.9)}10%{opacity:1;transform:translate(-50%,0) scale(1.05)}16%{transform:translate(-50%,0) scale(1)}82%{opacity:1}100%{opacity:0;transform:translate(-50%,-12px)}}
-  #quests{position:absolute;left:24px;top:78px;width:262px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:9px 12px 4px;backdrop-filter:blur(6px);pointer-events:auto}
+  #quests{flex:none;width:100%;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:9px 12px 4px;backdrop-filter:blur(6px);pointer-events:auto;box-sizing:border-box}
   #quests .qh{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;font-weight:800;letter-spacing:.14em;margin-bottom:5px}
   #quests .qh small{font-size:10px;color:var(--muted);letter-spacing:.04em;font-weight:500}
   .q{padding:5px 0 6px;border-top:1px solid rgba(255,255,255,.07)}
@@ -329,8 +340,7 @@
   .mapopt.castle .pic{background:linear-gradient(90deg,#8a919b 0 12%,transparent 12% 88%,#8a919b 88%),linear-gradient(180deg,#6f8196 0%,#a9b6c3 46%,#cfd3d8 47%,#9aa0a8 70%,#5f8a3e 71%,#4f7a34 100%)}
   .newdot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#ff3b3b;box-shadow:0 0 8px #ff3b3b;margin-left:6px;vertical-align:middle;animation:tutpulse 1.4s infinite}
   .newdot.off{display:none}
-  #chat{position:absolute;left:290px;bottom:74px;pointer-events:auto;z-index:4;display:flex;flex-direction:column-reverse;align-items:flex-start;gap:8px}
-  #chat.collapsed #chatBox{display:none}
+  #chat{position:absolute;left:290px;bottom:74px;pointer-events:auto;z-index:4;display:flex;flex-direction:column;align-items:flex-start;gap:8px}
   #chatBox{width:310px;height:270px;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px 10px;backdrop-filter:blur(6px)}
   #chatBox .chh{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;font-weight:800;letter-spacing:.14em}
   #chatBox .chh small{font-size:10px;color:var(--muted);letter-spacing:.03em;font-weight:500}
@@ -359,6 +369,23 @@
   .notice .codetag{display:inline-block;background:#1a2030;color:#ffd24a;font-weight:800;letter-spacing:.12em;
     padding:5px 11px;border-radius:5px;border:1px dashed #ffd24a;font-size:13px}
   .noboard{color:#f0e6cc;text-align:center;padding:30px 10px;font-size:13px}
+
+  /* ---------- duel VS splash ---------- */
+  .vsOverlay{position:fixed;inset:0;z-index:80;display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(circle at center,rgba(20,25,38,.94),rgba(4,6,10,.98));opacity:0;transition:opacity .25s;pointer-events:none}
+  .vsOverlay.show{opacity:1}
+  .vsWrap{display:flex;align-items:center;gap:34px}
+  .vsCard{width:210px;text-align:center;padding:22px 14px;border-radius:16px;background:rgba(20,26,40,.8);
+    border:2px solid var(--line);backdrop-filter:blur(6px);opacity:0;transition:opacity .4s ease-out,transform .4s cubic-bezier(.2,1.3,.4,1)}
+  .vsCard.me{transform:translateX(-70px)}
+  .vsCard.opp{transform:translateX(70px)}
+  .vsOverlay.show .vsCard{opacity:1;transform:translateX(0)}
+  .vsSwatch{width:82px;height:82px;border-radius:50%;margin:0 auto 14px;border:4px solid rgba(255,255,255,.3);box-shadow:0 6px 18px rgba(0,0,0,.55)}
+  .vsName{font-size:19px;font-weight:900;letter-spacing:.06em;text-transform:uppercase;color:#fff;margin-bottom:5px;word-break:break-word}
+  .vsGun{font-size:11px;color:var(--muted);letter-spacing:.14em;text-transform:uppercase}
+  .vsMid{font-size:50px;font-weight:900;letter-spacing:.06em;color:var(--accent);text-shadow:0 0 26px rgba(255,106,43,.8);
+    font-style:italic;padding:0 4px;opacity:0;transform:scale(.6);transition:opacity .35s .15s,transform .35s .15s cubic-bezier(.2,1.3,.4,1)}
+  .vsOverlay.show .vsMid{opacity:1;transform:scale(1)}
 </style>
 </head>
 <body>
@@ -426,6 +453,7 @@
     </div>
 
     <button id="tutBtn"><i>?</i> HOW TO PLAY</button>
+    <div class="leftstack">
       <div id="quests"></div>
       <div class="modes">
       <button class="mode" data-mode="single"><h3>Singleplayer</h3><p>Fight bots in realistic maps.</p></button>
@@ -435,11 +463,11 @@
       <button class="mode" data-mode="events"><h3>Events <span class="badge" id="evBadge" style="display:none">NEW</span></h3><p>Codes and announcements, posted here anytime.</p></button>
       <button class="mode" data-mode="public"><h3>Public</h3><p>Find a server for you in the public.</p></button>
     </div>
+    </div>
 
     <div class="side" id="side"></div>
 
-    <div id="chat" class="collapsed">
-      <button id="chatTab" class="btn small">&#128172; CHAT<span class="newdot off" id="chatDot"></span></button>
+    <div id="chat">
       <div id="chatBox"><div class="chh"><b>CHAT</b><small id="chatScope">Public lobby chat</small></div><div id="chatLog"></div>
         <div class="chin"><input id="chatIn" maxlength="140" placeholder="Type a message, press Enter" autocomplete="off"><button class="btn small" id="chatSend">SEND</button></div></div>
     </div>
@@ -3148,7 +3176,8 @@ const AMMO = { sniper:{ mag:5, rt:4.2 }, ak47:{ mag:30, rt:3.2 }, rifle:{ mag:30
 let ammo = 0, reloadT = 0, reloadDur = 1, aiming = false;
 function updateAmmo(){
   const id = loadout.weapon, n = WEAPONS.find(w => w.id === id).n, A = AMMO[id];
-  $('hudWeapon').innerHTML = '<div>' + n + '</div>' + (A ? '<div class="ammo' + (reloadT > 0 ? ' rl' : ammo <= Math.ceil(A.mag * .25) ? ' low' : '') + '">' + (reloadT > 0 ? 'RELOADING...' : ammo + '/' + A.mag) + '</div>' : '');
+  $('hudWeapon').innerHTML = '<div>' + n + '</div>' + (A ? '<div class="ammo' + (reloadT > 0 ? ' rl' : ammo <= Math.ceil(A.mag * .25) ? ' low' : '') + '">' +
+    (reloadT > 0 ? 'RELOADING<div class="rlbar"><b id="rlbarFill"></b></div>' : ammo + '/' + A.mag) + '</div>' : '');
 }
 function startReload(){
   const id = loadout.weapon, A = AMMO[id];
@@ -3245,6 +3274,27 @@ function puff(pos, count, size, speed, color){
     particles.push({ m, v:new THREE.Vector3((Math.random()-.5)*speed, Math.random()*speed*.8, (Math.random()-.5)*speed), life:.55 + Math.random()*.3, max:.8 });
   }
 }
+// small particle bursts timed with each reload sound event (mag hitting the
+// floor, brass ejecting, the bolt racking...) so the reload actually reads
+// as a physical thing happening to the gun, not just an animation playing
+const _rlFxV = new THREE.Vector3();
+const RL_FX = {
+  drop:  { count:3, size:.03,  speed:.9,  color:0x3a4252 },
+  thud:  { count:3, size:.03,  speed:.7,  color:0x56622f },
+  slap:  { count:3, size:.022, speed:.6,  color:0x9aa4b8 },
+  rack:  { count:3, size:.018, speed:.9,  color:0xd7dde6 },
+  bolt:  { count:2, size:.016, speed:.7,  color:0xd7dde6 },
+  shell: { count:4, size:.02,  speed:1.3, color:0xdcb66a },
+  round: { count:2, size:.016, speed:.9,  color:0xdcb66a },
+  latch: { count:2, size:.02,  speed:.6,  color:0x8c95a1 },
+};
+function reloadFx(kind){
+  const spec = RL_FX[kind];
+  if (!spec || !vmW) return;
+  camera.updateMatrixWorld(true);
+  vmW.getWorldPosition(_rlFxV);
+  puff(_rlFxV, spec.count, spec.size, spec.speed, spec.color);
+}
 
 /* ---------- detailed reload animations (every gun), timed with sounds ---------- */
 let vmBase = null, vmRL = null, rlPrev = -1, rlWas = false;
@@ -3338,7 +3388,7 @@ function animReload(id, k, on){
     S.props.forEach(pp => { const q = vmRL.props[pp.p]; if (q && k >= pp.a && k < pp.b){ q.visible = true; const v = kfInterp(pp.fr, k); q.position.set(v[0], v[1], v[2]); } });
     if (S.custom) S.custom(k, ud, vmRL);
   }
-  for (const e of S.ev) if (rlPrev < e[0] && k >= e[0]) Snd.rl(e[1]);
+  for (const e of S.ev) if (rlPrev < e[0] && k >= e[0]){ Snd.rl(e[1]); reloadFx(e[1]); }
   rlPrev = k;
 }
 
@@ -3547,6 +3597,11 @@ function makeNameTag(text){
   fill.scale.set(barW, barH, 1); fill.position.y = 2.22;
   fill.userData.fullW = barW;
 
+  // the nametag and health bar should read through walls/terrain, like a
+  // duel opponent you can always locate - skip the depth test and draw them
+  // last so nothing in the map can hide them
+  [spr, bg, fill].forEach((s, i) => { s.material.depthTest = false; s.material.depthWrite = false; s.renderOrder = 900 + i; });
+
   const grp = new THREE.Group();
   grp.add(bg); grp.add(fill); grp.add(spr);
   grp.userData.healthFill = fill;
@@ -3586,6 +3641,12 @@ function myLoadoutMsg(){
   return { type:'loadout', name:acct && acct.name || 'Player', tone:loadout.tone, outfit:loadout.outfit, weapon:loadout.weapon, gunSkin:loadout.gunSkins[loadout.weapon] || 'default' };
 }
 function spawnRemote(x, z, yaw, y){
+  // this is called again at the start of every duel round (round 2, 3, ...), not just
+  // the first - without this, each new round's avatar was added on top of the last
+  // one instead of replacing it, leaving frozen, undamageable "ghost" copies of the
+  // opponent behind in the scene forever (visible in the lobby and map preview too,
+  // since they were never actually removed)
+  if (remote && remote.g && remote.g.parent) scene.remove(remote.g);
   const g = makeRemoteMesh(oppLoadout.tone, oppLoadout.outfit, oppLoadout.weapon, oppLoadout.gunSkin);
   const tag = makeNameTag(oppLoadout.name || 'OPPONENT'); g.add(tag);
   remote = { g, tag, x, y:y || 0, z, yaw, walkT:0, mv:false, hp:100, dead:false, sliding:false, slidePose:-1,
@@ -4365,6 +4426,7 @@ function battleUpdate(dt, t){
     const aA = P.ads, rpv = reloadT > 0 ? 1 - reloadT / reloadDur : 0, snp = loadout.weapon === 'sniper';
     vm.position.x += -.21 * aA; vm.position.y += .12 * aA;
     animReload(loadout.weapon, rpv, reloadT > 0);
+    if (reloadT > 0){ const rb = $('rlbarFill'); if (rb) rb.style.width = (rpv * 100) + '%'; }
     if (snp && aA > .6) vm.visible = false;
     $('scope').style.opacity = snp ? clamp((aA - .6) / .3, 0, 1) : 0;
     $('scope').style.transform = snp && snKick > 0 ? 'translate(' + ((Math.random() - .5) * snKick * 1.6).toFixed(2) + 'vmin,' + (snKick * 4.5).toFixed(2) + 'vmin) scale(' + (1 + snKick * .07).toFixed(3) + ')' : '';
@@ -4610,6 +4672,7 @@ function endBattle(){
   showScreen('menu');
   Snd.setPlaylist(['calm', 'minor']);
   cam.target.set(me.x, 1.0, me.z);
+  netConnect(() => {}, () => {});   // back in the lobby - make sure public chat is (re)connected
 }
 /* =====================================================
    7. MAIN LOOP
@@ -4923,7 +4986,7 @@ function beginMapVote(){
       <div class="mapopt" data-m="castle"><div class="pic"></div><b>DEFENCE CASTLE</b><small>Many floors, dungeon, prison and thrones</small></div>
     </div>
     <p id="voteStatus" style="font-size:12px;color:#9aa4b8">Pick a map to vote &nbsp;&bull;&nbsp; best of 5 rounds, 500 HP each round</p>`,
-    () => { if (!duelRound && NET.ws){ try{ NET.ws.close(); }catch(e){} NET.ws = null; NET.connected = false; duelMode = false; } });
+    () => { if (!duelRound && NET.ws){ try{ NET.ws.close(); }catch(e){} NET.ws = null; NET.connected = false; duelMode = false; netConnect(() => {}, () => {}); } });
   $('voteGrid').onclick = e => {
     const o = e.target.closest('.mapopt'); if (!o || duelMyVote) return;
     duelMyVote = o.dataset.m;
@@ -4961,27 +5024,56 @@ function applyRoundSpawns(data, isFirst){
   const mine = data[netRole], theirs = data[netRole === 'host' ? 'guest' : 'host'];
   beginDuelRound(data.round, mine, theirs, !!isFirst);
 }
+// a big "YOU vs OPPONENT" flash, with each player's outfit colour and
+// equipped weapon, shown once right before a new duel match actually starts
+function showVsSplash(cb){
+  const esc = s => String(s == null ? '' : s).replace(/[&<>]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[c]));
+  const hex = n => '#' + (n >>> 0).toString(16).padStart(6, '0');
+  const outfitOf = id => OUTFITS.find(o => o.id === id) || OUTFITS[0];
+  const gunName = id => { const w = WEAPONS.find(x => x.id === id); return w ? w.n : (id || ''); };
+  const myOutfit = outfitOf(loadout.outfit), oppOutfit = outfitOf(oppLoadout.outfit);
+  const myName = (acct && acct.name) || 'YOU', oppName = oppLoadout.name || 'OPPONENT';
+  const ov = document.createElement('div'); ov.className = 'vsOverlay';
+  ov.innerHTML =
+    '<div class="vsWrap">' +
+      '<div class="vsCard me"><div class="vsSwatch" style="background:' + hex(myOutfit.shirt) + '"></div>' +
+        '<div class="vsName">' + esc(myName) + '</div><div class="vsGun">' + esc(gunName(loadout.weapon)) + '</div></div>' +
+      '<div class="vsMid">VS</div>' +
+      '<div class="vsCard opp"><div class="vsSwatch" style="background:' + hex(oppOutfit.shirt) + '"></div>' +
+        '<div class="vsName">' + esc(oppName) + '</div><div class="vsGun">' + esc(gunName(oppLoadout.weapon)) + '</div></div>' +
+    '</div>';
+  document.body.appendChild(ov);
+  Snd.click();
+  requestAnimationFrame(() => requestAnimationFrame(() => ov.classList.add('show')));
+  setTimeout(() => {
+    ov.classList.remove('show');
+    setTimeout(() => { ov.remove(); cb(); }, 260);
+  }, 2300);
+}
 function beginDuelRound(round, mySpawn, oppSpawn, isFirst){
   duelRound = round; remoteWasDead = false; netTickT = 0;
-  if (isFirst){
-    startBattle(duelMap, { hp:DUEL_HP, spawn:mySpawn });
-    duelMode = true;                           // startBattle doesn't touch this - set again defensively
-  } else {
-    Object.assign(P, { x:mySpawn.x, y:mySpawn.y || 0, z:mySpawn.z, vy:0, yaw:mySpawn.yaw, pitch:0, onGround:true,
-      hp:DUEL_HP, maxHp:DUEL_HP, dead:false, deathLeft:0, slide:0, slideCd:0, cWas:false, hurtT:0, hitT:0, hmT:0, ads:0, yawV:0, mvx:0, spinV:0, ex:0, ez:0, padCd:0, stam:1, tired:false });
-    setHp();
-    $('death').classList.add('hidden'); $('hurt').style.opacity = 0;
-    won = false; winT = 0; $('win').classList.add('hidden');
-    firing = false; recoil = 0; swing = 0; flashT = 0; fireCd = 0; reloadT = 0;
-    ammo = AMMO[loadout.weapon] ? AMMO[loadout.weapon].mag : 0; updateAmmo();
-    noLock = false; $('pause').classList.add('hidden');
-    try{ if (!document.pointerLockElement) $('stage').requestPointerLock(); }catch(e){}
-  }
-  // round 1 opens with a parachute drop for both players - start the opponent's avatar
-  // up at the same altitude so you actually watch them fall and land too, instead of
-  // them just standing there already on the ground while only you parachute in
-  spawnRemote(oppSpawn.x, oppSpawn.z, oppSpawn.yaw, isFirst ? DROP_ALT : (oppSpawn.y || 0));
-  showToast('Round ' + round + ' of ' + DUEL_MAX_ROUNDS + ' - score ' + duelScoreMe + ' : ' + duelScoreOpp);
+  const proceed = () => {
+    if (isFirst){
+      startBattle(duelMap, { hp:DUEL_HP, spawn:mySpawn });
+      duelMode = true;                           // startBattle doesn't touch this - set again defensively
+    } else {
+      Object.assign(P, { x:mySpawn.x, y:mySpawn.y || 0, z:mySpawn.z, vy:0, yaw:mySpawn.yaw, pitch:0, onGround:true,
+        hp:DUEL_HP, maxHp:DUEL_HP, dead:false, deathLeft:0, slide:0, slideCd:0, cWas:false, hurtT:0, hitT:0, hmT:0, ads:0, yawV:0, mvx:0, spinV:0, ex:0, ez:0, padCd:0, stam:1, tired:false });
+      setHp();
+      $('death').classList.add('hidden'); $('hurt').style.opacity = 0;
+      won = false; winT = 0; $('win').classList.add('hidden');
+      firing = false; recoil = 0; swing = 0; flashT = 0; fireCd = 0; reloadT = 0;
+      ammo = AMMO[loadout.weapon] ? AMMO[loadout.weapon].mag : 0; updateAmmo();
+      noLock = false; $('pause').classList.add('hidden');
+      try{ if (!document.pointerLockElement) $('stage').requestPointerLock(); }catch(e){}
+    }
+    // round 1 opens with a parachute drop for both players - start the opponent's avatar
+    // up at the same altitude so you actually watch them fall and land too, instead of
+    // them just standing there already on the ground while only you parachute in
+    spawnRemote(oppSpawn.x, oppSpawn.z, oppSpawn.yaw, isFirst ? DROP_ALT : (oppSpawn.y || 0));
+    showToast('Round ' + round + ' of ' + DUEL_MAX_ROUNDS + ' - score ' + duelScoreMe + ' : ' + duelScoreOpp);
+  };
+  if (isFirst) showVsSplash(proceed); else proceed();
 }
 function duelRoundEnd(iWon){
   if (won) return;                              // already processed this round's outcome
@@ -5048,7 +5140,7 @@ document.querySelectorAll('.mode').forEach(btn => {
           <button class="btn" id="mkRoom">CREATE</button>
           <button class="btn alt" id="jnRoom">JOIN</button>
         </div>
-        <div id="duelOut"></div>`, () => { if (!duelMode && NET.ws){ try{ NET.ws.close(); }catch(e){} NET.ws = null; NET.connected = false; } });
+        <div id="duelOut"></div>`, () => { if (!duelMode && NET.ws){ try{ NET.ws.close(); }catch(e){} NET.ws = null; NET.connected = false; netConnect(() => {}, () => {}); } });
       $('mkRoom').onclick = () => {
         $('duelOut').innerHTML = '<p style="margin-top:12px">Connecting to the server...</p>';
         netOnCreated = code => { $('duelOut').innerHTML = `<p style="margin-top:12px">Room code (share with your friend):</p><div class="code">${code}</div><p style="font-size:12px;color:#9aa4b8;margin-top:8px">Waiting for them to join...</p>`; };
@@ -5113,6 +5205,7 @@ function enterMenu(key){
   refreshLook(); renderPanels();
   cam.target.set(me.x, 1.0, me.z);
   Snd.setPlaylist(['calm', 'minor']);
+  netConnect(() => {}, () => {});   // so public lobby chat is live as soon as you're in
 }
 
 const TIPS = [
@@ -5589,15 +5682,12 @@ function openYouTube(){
 }
 $('ytBtn').onclick = openYouTube;
 
-/* ---------- chat (saved on this device; a friendly bot answers) ---------- */
+/* ---------- chat (saved on this device, always open, public in the lobby) ---------- */
 const CHAT_KEY = 'defence_chat_v1';
 let chatLog = store.get(CHAT_KEY, []);
-const BOT_NAME = 'DefenceBot';
-const CHAT_TIPS = ['Keep moving! Bots almost never hit you while you run or slide.', 'Headshots do the most damage. Aim for the head.', 'Step on a green pad to launch up, an orange pad to fly across the map.', 'The RPG rocket takes time to arrive, so aim a little ahead of moving bots.', 'Claim your daily quests in the top left for free Decoins.', 'The Daily Wheel is free once a day.', 'Prairie Falls has a huge waterfall. You can hear it get louder as you get closer.', 'In Defence Castle, take the stairs in the towers to reach the roof, or sneak through the tunnels under the castle.'];
-function chatAdd(u, t, bot, sys){
-  chatLog.push({ u, t, bot:!!bot, sys:!!sys }); if (chatLog.length > 60) chatLog.shift();
+function chatAdd(u, t, sys){
+  chatLog.push({ u, t, sys:!!sys }); if (chatLog.length > 60) chatLog.shift();
   store.set(CHAT_KEY, chatLog); chatDraw();
-  if ($('chat').classList.contains('collapsed')) $('chatDot').classList.remove('off');
 }
 // the lobby/menu chat is public (anyone online who isn't currently in a duel sees it);
 // the moment you're matched into a duel the same panel becomes private between just
@@ -5610,25 +5700,11 @@ function chatDraw(){
   updateChatScope();
   const el = $('chatLog'); el.innerHTML = '';
   chatLog.forEach(m => {
-    const d = document.createElement('div'); d.className = 'cm' + (m.bot ? ' bot' : '') + (m.sys ? ' sys' : '');
+    const d = document.createElement('div'); d.className = 'cm' + (m.sys ? ' sys' : '');
     if (!m.sys){ const b = document.createElement('b'); b.textContent = m.u; d.appendChild(b); }
     d.appendChild(document.createTextNode(m.t)); el.appendChild(d);
   });
   el.scrollTop = el.scrollHeight;
-}
-function botReply(txt){
-  const q = txt.toLowerCase(), me = acct ? acct.name : 'friend';
-  if (/^\/help|help/.test(q)) return 'Try: hi, tip, coins, maps, pads, rpg, codes, wheel. Other online players see your chat too - public in the lobby, private once you’re in a duel.';
-  if (/\b(hi|hello|hey|yo|sup)\b/.test(q)) return 'Hey ' + me + '! Ready to defend? Type "tip" for a tip.';
-  if (/tip/.test(q)) return CHAT_TIPS[Math.random() * CHAT_TIPS.length | 0];
-  if (/coin|money|decoin/.test(q)) return acct ? 'You have ' + acct.coins + ' Decoins. Bots pay 1 each, quests and the wheels pay more.' : 'Decoins come from bots, quests and the wheels.';
-  if (/map/.test(q)) return 'Maps: Dust Yard (desert), Frost Peak (snow), Pine Hollow (forest), Prairie Falls (waterfall) and Defence Castle (castle with a dungeon, towers and thrones).';
-  if (/pad|jump/.test(q)) return 'Green pads launch you straight up. Orange pads fling you far in the arrow direction.';
-  if (/rpg|rocket/.test(q)) return 'RPG rockets fly slowly and explode on impact. Lead your target!';
-  if (/code|redeem/.test(q)) return 'Press REDEEM CODE at the top to enter a code. Each code works once per account.';
-  if (/wheel|spin/.test(q)) return 'The Daily Wheel is free once a day. The Premium Wheel costs 10 Decoins and has better odds.';
-  if (/gg|good game|nice/.test(q)) return 'GG! Keep it up!';
-  return ['Nice one!', 'Good luck out there!', 'Type "help" to see what I can answer.', 'Defend the base!'][Math.random() * 4 | 0];
 }
 let chatLast = 0;
 function chatSend(){
@@ -5640,16 +5716,17 @@ function chatSend(){
   // send it to the relay server - public to everyone in the lobby, or just your
   // opponent if you're in a duel (the server itself decides which, from your room state)
   netConnect(() => netSend({ type:'chat', name:myName, text:txt }), () => {});
-  setTimeout(() => chatAdd(BOT_NAME, botReply(txt), true), 600 + Math.random() * 500);
 }
-if (!chatLog.length) chatLog.push({ u:BOT_NAME, t:'Welcome to DEFENCE! Chat here is public to everyone online, and goes private just between you and your opponent during a duel.', bot:true });
-$('chatTab').onclick = () => { const c = $('chat'); c.classList.toggle('collapsed'); if (!c.classList.contains('collapsed')){ $('chatDot').classList.add('off'); chatDraw(); $('chatIn').focus(); netConnect(() => {}, () => {}); } };
+if (!chatLog.length) chatLog.push({ u:'', t:'Welcome to DEFENCE! Chat here is public to everyone online, and goes private just between you and your opponent during a duel.', sys:true });
+// the chat panel is always open now - connect to the relay right away so public
+// lobby messages from other players show up without you having to do anything
+chatDraw();
+netConnect(() => {}, () => {});
 $('chatSend').onclick = chatSend;
 ['keydown', 'keyup', 'keypress'].forEach(ev => $('chatIn').addEventListener(ev, e => {
   e.stopPropagation();
   if (ev === 'keydown'){ if (e.key === 'Enter') chatSend(); else if (e.key === 'Escape') $('chatIn').blur(); }
 }));
-chatDraw();
 
 /* ---------- settings ---------- */
 const SET = Object.assign({ vol:.8, sens:1, fov:70, shadows:true }, store.get('defence_settings', {}));
